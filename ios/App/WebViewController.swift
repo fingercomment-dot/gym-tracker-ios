@@ -26,6 +26,7 @@ final class WebViewController: UIViewController {
     /// Only the app on screen; Claude's page around it is hidden.
     private var focused = false
     private var focusTask: Task<Void, Never>?
+    private var revealTask: Task<Void, Never>?
     private var pageDark = true
     private var pageBackground = AppSettings.pageBackground ?? "#000000"
 
@@ -66,6 +67,7 @@ final class WebViewController: UIViewController {
         web.scrollView.backgroundColor = .clear
         web.scrollView.contentInsetAdjustmentBehavior = .never
         web.isInspectable = true
+        web.alpha = 0
         view.addSubview(web)
         webView = web
 
@@ -91,6 +93,29 @@ final class WebViewController: UIViewController {
         spinner.startAnimating()
 
         web.load(URLRequest(url: startURL))
+    }
+
+    // MARK: - Showing the page
+
+    /// While Gym Tracker loads inside Claude's page, the screen stays on the app's background with a spinner,
+    /// so Claude's page doesn't flash before only the app is shown.
+    private func hidePage(for seconds: Double) {
+        webView.alpha = 0
+        spinner.startAnimating()
+        revealTask?.cancel()
+        revealTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            self?.revealPage()
+        }
+    }
+
+    private func revealPage() {
+        revealTask?.cancel()
+        revealTask = nil
+        spinner.stopAnimating()
+        guard webView.alpha < 1 else { return }
+        UIView.animate(withDuration: 0.2) { self.webView.alpha = 1 }
     }
 
     override var preferredStatusBarStyle: UIStatusBarStyle {
@@ -135,6 +160,7 @@ final class WebViewController: UIViewController {
             self.webView.scrollView.bounces = !nowOn
             self.sendToApp(["type": "focus", "focus": nowOn, "insets": nowOn ? self.insetsPayload() : NSNull()])
             self.setNeedsStatusBarAppearanceUpdate()
+            self.revealPage()
         }
     }
 
@@ -286,7 +312,7 @@ final class WebViewController: UIViewController {
         let ns = error as NSError
         if ns.domain == NSURLErrorDomain && ns.code == NSURLErrorCancelled { return }
         if ns.domain == "WebKitErrorDomain" && (ns.code == 102 || ns.code == 204) { return }
-        spinner.stopAnimating()
+        revealPage()
         // the app is already on screen: a failed side request is no reason to cover it
         guard appFrame == nil else { return }
         showError(ns.localizedDescription)
@@ -319,12 +345,14 @@ extension WebViewController: WKScriptMessageHandler {
         case "hello":
             appFrame = message.frameInfo
             appIsWholePage = message.frameInfo.isMainFrame
-            spinner.stopAnimating()
             hideError()
             if appIsWholePage {
                 setFullScreen(true)
                 setNeedsStatusBarAppearanceUpdate()
-            } else if AppSettings.focusMode && !focused {
+                revealPage()
+            } else if !AppSettings.focusMode {
+                revealPage()
+            } else if !focused {
                 // let the page connect to Claude first (it says "ready"), but don't wait for ever
                 focusTask?.cancel()
                 focusTask = Task { @MainActor [weak self] in
@@ -414,11 +442,16 @@ extension WebViewController: WKNavigationDelegate {
         appFrame = nil
         appIsWholePage = false
         setNeedsStatusBarAppearanceUpdate()
+        if AppSettings.focusMode, webView.url?.path.contains("/artifact") == true {
+            hidePage(for: 9)
+        } else {
+            revealPage()
+        }
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         guard webView === self.webView else { return }
-        spinner.stopAnimating()
+        if webView.alpha >= 1 { spinner.stopAnimating() }
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {

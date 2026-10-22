@@ -49,6 +49,7 @@ targets:
         PRODUCT_NAME: GymTracker
         PRODUCT_BUNDLE_IDENTIFIER: io.github.fingercomment-dot.gymtracker
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        TARGETED_DEVICE_FAMILY: "1"
     dependencies:
       - target: GymWidgets
         embed: true
@@ -72,6 +73,7 @@ targets:
       base:
         PRODUCT_NAME: GymWidgets
         PRODUCT_BUNDLE_IDENTIFIER: io.github.fingercomment-dot.gymtracker.widgets
+        TARGETED_DEVICE_FAMILY: "1"
         SKIP_INSTALL: "YES"
         APPLICATION_EXTENSION_API_ONLY: "YES"
 
