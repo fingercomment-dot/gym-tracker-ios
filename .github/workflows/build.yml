@@ -102,7 +102,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           V=${{ steps.ver.outputs.version }}
-          NOTES=$(git log -1 --pretty=%B)
+          NOTES=$(git log -1 --pretty=%B | sed -e '/^Co-Authored-By:/d' -e '/^Claude-Session:/d')
           gh release create "v$V" out/GymTracker.ipa --title "Gym Tracker $V" --notes "$NOTES" --latest
 
       - name: Tell SideStore about the new version

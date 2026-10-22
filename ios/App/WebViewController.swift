@@ -443,7 +443,7 @@ extension WebViewController: WKNavigationDelegate {
         appIsWholePage = false
         setNeedsStatusBarAppearanceUpdate()
         if AppSettings.focusMode, webView.url?.path.contains("/artifact") == true {
-            hidePage(for: 9)
+            hidePage(for: 8)
         } else {
             revealPage()
         }
