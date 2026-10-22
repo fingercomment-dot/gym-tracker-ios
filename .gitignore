@@ -1,0 +1,8 @@
+.DS_Store
+ios/GymTracker.xcodeproj/
+ios/build/
+ios/build.log
+ios/App/Info.plist
+ios/Widgets/Info.plist
+out/
+xcuserdata/

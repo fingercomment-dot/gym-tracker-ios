@@ -1,0 +1,28 @@
+{
+  "name": "Gym Tracker",
+  "identifier": "io.github.fingercomment-dot.gymtracker.source",
+  "subtitle": "Дневник тренировок для iPhone",
+  "description": "Gym Tracker для iPhone: тренировка и таймер отдыха на экране блокировки и в Dynamic Island.",
+  "website": "https://github.com/fingercomment-dot/gym-tracker-ios",
+  "iconURL": "https://raw.githubusercontent.com/fingercomment-dot/gym-tracker-ios/main/ios/App/Assets.xcassets/AppIcon.appiconset/icon-1024.png",
+  "tintColor": "#8B6CEF",
+  "apps": [
+    {
+      "name": "Gym Tracker",
+      "bundleIdentifier": "io.github.fingercomment-dot.gymtracker",
+      "developerName": "fingercomment-dot",
+      "subtitle": "Тренировки, отдых в Dynamic Island",
+      "localizedDescription": "Твой Gym Tracker из Claude как настоящее приложение: текущее упражнение, подходы и таймер отдыха видны на экране блокировки и в Dynamic Island, барабаны отзываются настоящей вибрацией, экран не гаснет во время тренировки. Данные те же, что в Claude.",
+      "iconURL": "https://raw.githubusercontent.com/fingercomment-dot/gym-tracker-ios/main/ios/App/Assets.xcassets/AppIcon.appiconset/icon-1024.png",
+      "tintColor": "#8B6CEF",
+      "category": "utilities",
+      "screenshotURLs": [],
+      "versions": [],
+      "appPermissions": {
+        "entitlements": [],
+        "privacy": {}
+      }
+    }
+  ],
+  "news": []
+}

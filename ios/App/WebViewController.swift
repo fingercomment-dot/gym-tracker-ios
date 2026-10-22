@@ -1,0 +1,485 @@
+import UIKit
+import WebKit
+
+/// The app itself: your Gym Tracker page in Claude, full screen, plus what only a real app can do —
+/// the workout on the Lock Screen and in the Dynamic Island, real haptics, the screen kept awake.
+///
+/// The page talks to the app through `window.webkit.messageHandlers.gymNative.postMessage({type, …})`
+/// and gets answers through `window.__gymNative({…})`.
+final class WebViewController: UIViewController {
+    var onChangeLink: (() -> Void)?
+
+    private let startURL: URL
+    private var webView: WKWebView!
+    private var topSafe: NSLayoutConstraint!
+    private var topFull: NSLayoutConstraint!
+    private var bottomSafe: NSLayoutConstraint!
+    private var bottomFull: NSLayoutConstraint!
+    private let spinner = UIActivityIndicatorView(style: .large)
+    private var errorView: UIView?
+    private weak var popup: PopupViewController?
+
+    /// The frame Gym Tracker runs in. It says hello once it has loaded.
+    private var appFrame: WKFrameInfo?
+    /// Gym Tracker is the whole page (not inside Claude's page).
+    private var appIsWholePage = false
+    /// Only the app on screen; Claude's page around it is hidden.
+    private var focused = false
+    private var focusTask: Task<Void, Never>?
+    private var pageDark = true
+    private var pageBackground = AppSettings.pageBackground ?? "#000000"
+
+    init(url: URL) {
+        startURL = url
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = AppSettings.startBackground
+        pageDark = (view.backgroundColor?.luminance ?? 0) < 0.5
+
+        let config = WKWebViewConfiguration()
+        config.websiteDataStore = .default()
+        config.allowsInlineMediaPlayback = true
+        config.mediaTypesRequiringUserActionForPlayback = []
+        config.preferences.javaScriptCanOpenWindowsAutomatically = true
+        // look like Safari: some sign-in pages refuse browsers built into apps
+        let major = ProcessInfo.processInfo.operatingSystemVersion.majorVersion
+        config.applicationNameForUserAgent = "Version/\(major).0 Mobile/15E148 Safari/604.1"
+
+        let scripts = WKUserContentController()
+        scripts.add(ScriptHandlerProxy(self), name: "gymNative")
+        scripts.addUserScript(WKUserScript(source: PageScripts.focus, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
+        config.userContentController = scripts
+
+        let web = WKWebView(frame: .zero, configuration: config)
+        web.translatesAutoresizingMaskIntoConstraints = false
+        web.navigationDelegate = self
+        web.uiDelegate = self
+        web.allowsBackForwardNavigationGestures = false
+        web.allowsLinkPreview = false
+        web.isOpaque = false
+        web.backgroundColor = .clear
+        web.scrollView.backgroundColor = .clear
+        web.scrollView.contentInsetAdjustmentBehavior = .never
+        web.isInspectable = true
+        view.addSubview(web)
+        webView = web
+
+        topSafe = web.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor)
+        topFull = web.topAnchor.constraint(equalTo: view.topAnchor)
+        bottomSafe = web.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor)
+        bottomFull = web.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        NSLayoutConstraint.activate([
+            web.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            web.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            topSafe,
+            bottomSafe,
+        ])
+
+        spinner.translatesAutoresizingMaskIntoConstraints = false
+        spinner.color = .gray
+        spinner.hidesWhenStopped = true
+        view.addSubview(spinner)
+        NSLayoutConstraint.activate([
+            spinner.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            spinner.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+        ])
+        spinner.startAnimating()
+
+        web.load(URLRequest(url: startURL))
+    }
+
+    override var preferredStatusBarStyle: UIStatusBarStyle {
+        guard focused || appIsWholePage else { return .default }
+        return pageDark ? .lightContent : .darkContent
+    }
+
+    override func viewSafeAreaInsetsDidChange() {
+        super.viewSafeAreaInsetsDidChange()
+        if focused { sendToApp(["type": "insets", "insets": insetsPayload()]) }
+    }
+
+    // MARK: - Full screen
+
+    private func setFullScreen(_ full: Bool) {
+        NSLayoutConstraint.deactivate(full ? [topSafe, bottomSafe] : [topFull, bottomFull])
+        NSLayoutConstraint.activate(full ? [topFull, bottomFull] : [topSafe, bottomSafe])
+        view.layoutIfNeeded()
+    }
+
+    private func focusIfWanted() {
+        focusTask?.cancel()
+        focusTask = nil
+        guard AppSettings.focusMode, !focused, !appIsWholePage, appFrame != nil else { return }
+        setFocus(true)
+    }
+
+    /// Lays the app over the whole screen (or puts Claude's page back) and tells the app how much room
+    /// the status bar and the home indicator take.
+    private func setFocus(_ on: Bool) {
+        if on { setFullScreen(true) }
+        let js = "window.__gymFocus ? window.__gymFocus(\(on ? "true" : "false"), \(Self.jsString(pageBackground))) : false"
+        webView.evaluateJavaScript(js, in: nil, in: .page) { [weak self] result in
+            guard let self else { return }
+            var found = false
+            if case .success(let value) = result, let number = value as? NSNumber {
+                found = number.boolValue
+            }
+            let nowOn = on && found
+            self.focused = nowOn
+            if !nowOn { self.setFullScreen(false) }
+            self.webView.scrollView.bounces = !nowOn
+            self.sendToApp(["type": "focus", "focus": nowOn, "insets": nowOn ? self.insetsPayload() : NSNull()])
+            self.setNeedsStatusBarAppearanceUpdate()
+        }
+    }
+
+    private func insetsPayload() -> [String: Double] {
+        let insets = view.safeAreaInsets
+        return ["top": Double(insets.top), "bottom": Double(insets.bottom), "left": Double(insets.left), "right": Double(insets.right)]
+    }
+
+    // MARK: - Talking to the page
+
+    private func sendToApp(_ payload: [String: Any]) {
+        guard let frame = appFrame,
+              JSONSerialization.isValidJSONObject(payload),
+              let data = try? JSONSerialization.data(withJSONObject: payload),
+              let json = String(data: data, encoding: .utf8) else { return }
+        webView.evaluateJavaScript("window.__gymNative ? window.__gymNative(\(json)) : false", in: frame, in: .page, completionHandler: nil)
+    }
+
+    private static func jsString(_ text: String) -> String {
+        guard let data = try? JSONSerialization.data(withJSONObject: text, options: .fragmentsAllowed),
+              let json = String(data: data, encoding: .utf8) else { return "\"\"" }
+        return json
+    }
+
+    private func applyLook(_ body: [String: Any]) {
+        guard let hex = body["bg"] as? String, let color = UIColor(hexString: hex) else { return }
+        pageBackground = hex
+        AppSettings.pageBackground = hex
+        view.backgroundColor = color
+        errorView?.backgroundColor = color
+        pageDark = (body["dark"] as? Bool) ?? (color.luminance < 0.5)
+        setNeedsStatusBarAppearanceUpdate()
+        if focused {
+            webView.evaluateJavaScript("window.__gymFocusBg ? window.__gymFocusBg(\(Self.jsString(hex))) : false", in: nil, in: .page, completionHandler: nil)
+        }
+    }
+
+    // MARK: - The app's own menu (Settings in the app, or shake the phone)
+
+    func showAppMenu() {
+        guard viewIfLoaded?.window != nil, presentedViewController == nil else { return }
+        let sheet = UIAlertController(title: "Gym Tracker", message: "Версия для iPhone \(AppSettings.appVersion)", preferredStyle: .actionSheet)
+        sheet.addAction(UIAlertAction(title: "Обновить страницу", style: .default) { [weak self] _ in
+            self?.reloadPage()
+        })
+        if appFrame != nil && !appIsWholePage {
+            let title = focused ? "Показать страницу Claude вокруг" : "Только приложение, без Claude вокруг"
+            sheet.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in
+                self?.toggleFocus()
+            })
+        }
+        if !LiveActivityManager.shared.isEnabled {
+            sheet.addAction(UIAlertAction(title: "Включить Live Activity в настройках", style: .default) { _ in
+                if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+            })
+        }
+        sheet.addAction(UIAlertAction(title: "Сменить ссылку на приложение", style: .default) { [weak self] _ in
+            self?.onChangeLink?()
+        })
+        sheet.addAction(UIAlertAction(title: "Отмена", style: .cancel))
+        if let pop = sheet.popoverPresentationController {
+            pop.sourceView = view
+            pop.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.maxY - 40, width: 1, height: 1)
+        }
+        present(sheet, animated: true)
+    }
+
+    private func toggleFocus() {
+        let want = !focused
+        AppSettings.focusMode = want
+        setFocus(want)
+    }
+
+    private func reloadPage() {
+        hideError()
+        spinner.startAnimating()
+        if webView.url == nil {
+            webView.load(URLRequest(url: startURL))
+        } else {
+            webView.reload()
+        }
+    }
+
+    // MARK: - When the page won't open
+
+    private func showError(_ text: String) {
+        hideError()
+        let overlay = UIView()
+        overlay.backgroundColor = view.backgroundColor
+        overlay.overrideUserInterfaceStyle = pageDark ? .dark : .light
+        overlay.translatesAutoresizingMaskIntoConstraints = false
+
+        let icon = UIImageView(image: UIImage(systemName: "wifi.exclamationmark"))
+        icon.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 44, weight: .regular)
+        icon.tintColor = .secondaryLabel
+
+        let title = UILabel()
+        title.text = "Не получилось открыть"
+        title.font = UIFontMetrics(forTextStyle: .title2).scaledFont(for: .systemFont(ofSize: 22, weight: .bold))
+        title.adjustsFontForContentSizeCategory = true
+        title.textAlignment = .center
+        title.numberOfLines = 0
+
+        let message = UILabel()
+        message.text = text + "\n\nНужен интернет, чтобы открыть приложение. Потом можно тренироваться и без сети, если не закрывать его."
+        message.font = .preferredFont(forTextStyle: .subheadline)
+        message.adjustsFontForContentSizeCategory = true
+        message.textColor = .secondaryLabel
+        message.textAlignment = .center
+        message.numberOfLines = 0
+
+        var retryConfig = UIButton.Configuration.filled()
+        retryConfig.title = "Повторить"
+        retryConfig.cornerStyle = .large
+        retryConfig.buttonSize = .large
+        let retry = UIButton(configuration: retryConfig, primaryAction: UIAction { [weak self] _ in self?.reloadPage() })
+
+        var changeConfig = UIButton.Configuration.plain()
+        changeConfig.title = "Сменить ссылку"
+        let change = UIButton(configuration: changeConfig, primaryAction: UIAction { [weak self] _ in self?.onChangeLink?() })
+
+        let stack = UIStackView(arrangedSubviews: [icon, title, message, retry, change])
+        stack.axis = .vertical
+        stack.alignment = .center
+        stack.spacing = 12
+        stack.setCustomSpacing(24, after: message)
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        overlay.addSubview(stack)
+        view.addSubview(overlay)
+        NSLayoutConstraint.activate([
+            overlay.topAnchor.constraint(equalTo: view.topAnchor),
+            overlay.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            overlay.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            overlay.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            stack.centerYAnchor.constraint(equalTo: overlay.safeAreaLayoutGuide.centerYAnchor),
+            stack.leadingAnchor.constraint(equalTo: overlay.leadingAnchor, constant: 32),
+            stack.trailingAnchor.constraint(equalTo: overlay.trailingAnchor, constant: -32),
+        ])
+        errorView = overlay
+    }
+
+    private func hideError() {
+        errorView?.removeFromSuperview()
+        errorView = nil
+    }
+
+    private func loadFailed(_ webView: WKWebView, _ error: Error) {
+        guard webView === self.webView else { return }
+        let ns = error as NSError
+        if ns.domain == NSURLErrorDomain && ns.code == NSURLErrorCancelled { return }
+        if ns.domain == "WebKitErrorDomain" && (ns.code == 102 || ns.code == 204) { return }
+        spinner.stopAnimating()
+        // the app is already on screen: a failed side request is no reason to cover it
+        guard appFrame == nil else { return }
+        showError(ns.localizedDescription)
+    }
+
+    private func topPresenter() -> UIViewController {
+        var top: UIViewController = self
+        while let next = top.presentedViewController, !next.isBeingDismissed { top = next }
+        return top
+    }
+
+    /// Shows a dialog for the page. If it can't be shown, `otherwise` answers the page right away
+    /// (WebKit insists on an answer).
+    private func present(dialog: UIViewController, otherwise: () -> Void) {
+        let top = topPresenter()
+        guard viewIfLoaded?.window != nil, !top.isBeingPresented, !top.isBeingDismissed else {
+            otherwise()
+            return
+        }
+        top.present(dialog, animated: true)
+    }
+}
+
+// MARK: - Messages from the page
+
+extension WebViewController: WKScriptMessageHandler {
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard let body = message.body as? [String: Any], let type = body["type"] as? String else { return }
+        switch type {
+        case "hello":
+            appFrame = message.frameInfo
+            appIsWholePage = message.frameInfo.isMainFrame
+            spinner.stopAnimating()
+            hideError()
+            if appIsWholePage {
+                setFullScreen(true)
+                setNeedsStatusBarAppearanceUpdate()
+            } else if AppSettings.focusMode && !focused {
+                // let the page connect to Claude first (it says "ready"), but don't wait for ever
+                focusTask?.cancel()
+                focusTask = Task { @MainActor [weak self] in
+                    try? await Task.sleep(nanoseconds: 6_000_000_000)
+                    guard !Task.isCancelled else { return }
+                    self?.focusIfWanted()
+                }
+            }
+            sendToApp([
+                "type": "hello",
+                "native": AppSettings.appVersion,
+                "live": LiveActivityManager.shared.isEnabled,
+                "focus": focused,
+                "insets": focused ? insetsPayload() : NSNull(),
+            ])
+        case "ready":
+            if appFrame == nil { appFrame = message.frameInfo }
+            focusIfWanted()
+        case "haptic":
+            Haptics.play(body["style"] as? String ?? "selection")
+        case "live":
+            LiveActivityManager.shared.apply(body["state"] as? [String: Any])
+        case "look":
+            applyLook(body)
+        case "awake":
+            UIApplication.shared.isIdleTimerDisabled = (body["on"] as? Bool) ?? false
+        case "menu":
+            showAppMenu()
+        default:
+            break
+        }
+    }
+}
+
+/// WKUserContentController holds its handlers for ever; this keeps only a weak link back to the screen.
+final class ScriptHandlerProxy: NSObject, WKScriptMessageHandler {
+    private weak var target: WKScriptMessageHandler?
+
+    init(_ target: WKScriptMessageHandler) {
+        self.target = target
+        super.init()
+    }
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        target?.userContentController(userContentController, didReceive: message)
+    }
+}
+
+// MARK: - Navigation
+
+extension WebViewController: WKNavigationDelegate {
+    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        guard let url = navigationAction.request.url, let scheme = url.scheme?.lowercased() else {
+            decisionHandler(.allow)
+            return
+        }
+        if !["http", "https", "about", "blob", "data", "javascript"].contains(scheme) {
+            // mailto:, tel:, other apps
+            UIApplication.shared.open(url)
+            decisionHandler(.cancel)
+            return
+        }
+        if navigationAction.navigationType == .linkActivated, scheme == "http" || scheme == "https", !Hosts.keepsInside(url) {
+            // a link to somewhere else: Safari (or the app that owns the link)
+            UIApplication.shared.open(url)
+            decisionHandler(.cancel)
+            return
+        }
+        decisionHandler(.allow)
+    }
+
+    func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        guard webView === self.webView else { return }
+        hideError()
+    }
+
+    func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+        guard webView === self.webView else { return }
+        // a new page: the app will say hello again from wherever it runs now
+        focusTask?.cancel()
+        focusTask = nil
+        if focused || appIsWholePage {
+            focused = false
+            webView.scrollView.bounces = true
+            setFullScreen(false)
+        }
+        appFrame = nil
+        appIsWholePage = false
+        setNeedsStatusBarAppearanceUpdate()
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        guard webView === self.webView else { return }
+        spinner.stopAnimating()
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        loadFailed(webView, error)
+    }
+
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        loadFailed(webView, error)
+    }
+
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        webView.reload()
+    }
+}
+
+// MARK: - Windows and dialogs the page opens
+
+extension WebViewController: WKUIDelegate {
+    func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+        if let url = navigationAction.request.url, let scheme = url.scheme?.lowercased(),
+           scheme == "http" || scheme == "https", !Hosts.isSignIn(url) {
+            // a link that wants its own window: Safari, or the Claude app for claude.ai links
+            UIApplication.shared.open(url)
+            return nil
+        }
+        // sign-in windows (and blank ones a page fills in itself) stay in the app, on top
+        let popupWeb = WKWebView(frame: .zero, configuration: configuration)
+        popupWeb.navigationDelegate = self
+        popupWeb.uiDelegate = self
+        let sheet = PopupViewController(webView: popupWeb)
+        topPresenter().present(sheet, animated: true)
+        popup = sheet
+        return popupWeb
+    }
+
+    func webViewDidClose(_ webView: WKWebView) {
+        if let popup, popup.webView === webView {
+            popup.dismiss(animated: true)
+        }
+    }
+
+    func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
+        let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler() })
+        present(dialog: alert) { completionHandler() }
+    }
+
+    func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
+        let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Отмена", style: .cancel) { _ in completionHandler(false) })
+        alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler(true) })
+        present(dialog: alert) { completionHandler(false) }
+    }
+
+    func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String, defaultText: String?, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (String?) -> Void) {
+        let alert = UIAlertController(title: nil, message: prompt, preferredStyle: .alert)
+        alert.addTextField { $0.text = defaultText }
+        alert.addAction(UIAlertAction(title: "Отмена", style: .cancel) { _ in completionHandler(nil) })
+        alert.addAction(UIAlertAction(title: "OK", style: .default) { [weak alert] _ in
+            completionHandler(alert?.textFields?.first?.text)
+        })
+        present(dialog: alert) { completionHandler(nil) }
+    }
+}

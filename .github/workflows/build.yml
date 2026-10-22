@@ -1,0 +1,120 @@
+name: Build
+
+# Every push that changes the iPhone app builds a fresh .ipa (unsigned — SideStore signs it with your Apple ID),
+# publishes it as a release and adds it to source.json, so SideStore can update the app by itself.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - ".github/workflows/build.yml"
+      - ".github/scripts/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_INSTALL_CLEANUP: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pick the newest Xcode
+        run: |
+          ls -d /Applications/Xcode*.app
+          XCODE=$(ls -d /Applications/Xcode_*.app | grep -viE 'beta|release_candidate|_rc' | sort -V | tail -1)
+          echo "Using $XCODE"
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+          xcodebuild -version
+
+      - name: Version
+        id: ver
+        run: |
+          BASE=$(tr -d ' \n\r' < ios/VERSION)
+          echo "version=$BASE.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          echo "build=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          echo "Version $BASE.${{ github.run_number }}"
+
+      - name: Make the Xcode project
+        working-directory: ios
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Build
+        working-directory: ios
+        run: |
+          if ! xcodebuild build \
+              -project GymTracker.xcodeproj \
+              -scheme GymTracker \
+              -configuration Release \
+              -sdk iphoneos \
+              -destination 'generic/platform=iOS' \
+              -derivedDataPath build \
+              MARKETING_VERSION=${{ steps.ver.outputs.version }} \
+              CURRENT_PROJECT_VERSION=${{ steps.ver.outputs.build }} \
+              CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+              > build.log 2>&1; then
+            echo "::group::Errors"
+            grep -E "error:|fatal|\*\* BUILD FAILED" -A4 build.log | head -150 || true
+            echo "::endgroup::"
+            tail -40 build.log
+            exit 1
+          fi
+          grep -E "warning:" build.log | grep -v "/build/" | sort -u | head -60 || true
+          tail -5 build.log
+
+      - name: Make the .ipa
+        run: |
+          APP=ios/build/Build/Products/Release-iphoneos/GymTracker.app
+          test -d "$APP/PlugIns/GymWidgets.appex" || { echo "The widget extension is missing"; ls -la "$APP"; exit 1; }
+          mkdir -p out/Payload
+          cp -R "$APP" out/Payload/
+          (cd out && zip -qry GymTracker.ipa Payload)
+          ls -la out
+
+      - name: Keep the build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: ios/build.log
+          if-no-files-found: ignore
+
+      - name: Keep the .ipa
+        uses: actions/upload-artifact@v4
+        with:
+          name: GymTracker-${{ steps.ver.outputs.version }}
+          path: out/GymTracker.ipa
+
+      - name: Publish the release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V=${{ steps.ver.outputs.version }}
+          NOTES=$(git log -1 --pretty=%B)
+          gh release create "v$V" out/GymTracker.ipa --title "Gym Tracker $V" --notes "$NOTES" --latest
+
+      - name: Tell SideStore about the new version
+        if: github.ref == 'refs/heads/main'
+        run: |
+          V=${{ steps.ver.outputs.version }}
+          python3 .github/scripts/update_source.py "$V" "${{ steps.ver.outputs.build }}" out/GymTracker.ipa "${{ github.repository }}" "$(git log -1 --pretty=%s)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add source.json
+          git commit -m "SideStore: version $V" || exit 0
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push origin HEAD:main && break
+            sleep 5
+          done
