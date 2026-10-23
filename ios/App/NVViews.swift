@@ -217,6 +217,12 @@ struct NVRowView: View {
             case "area": NVFieldRow(row: row, model: model, multiline: true)
             case "swatches": NVSwatchesRow(row: row, model: model)
             case "unit": NVUnitRow(row: row, model: model)
+            case "cal": NVCalendarRow(row: row, model: model).listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
+            case "chart": NVChartRow(row: row, accent: model.accent)
+            case "legend": NVLegendRow(row: row)
+            case "pick": NVPickRow(row: row, model: model)
+            case "meter": NVMeterRow(row: row, accent: model.accent)
+            case "wheels": NVWheelsRow(row: row, model: model)
             default: NVPlainRow(row: row, model: model)
             }
         }
@@ -248,9 +254,11 @@ struct NVPlainRow: View {
             if inUnit {
                 Button { model.act(fn) } label: { content }
                     .buttonStyle(.borderless)
+                    .disabled(row.flag("off"))
                     .accessibilityIdentifier("nv.row." + row.id)
             } else {
                 Button { model.act(fn) } label: { content }
+                    .disabled(row.flag("off"))
                     .accessibilityIdentifier("nv.row." + row.id)
             }
         } else {
@@ -278,6 +286,7 @@ struct NVPlainRow: View {
             } else {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(row.str("t") ?? "")
+                        .font(row.flag("bold") ? .headline : row.flag("small") ? .subheadline : .body)
                         .foregroundStyle(titleColor)
                         .monospacedDigit()
                     if let sub = row.str("s") {
@@ -297,6 +306,12 @@ struct NVPlainRow: View {
                 }
                 if let trail = row.node("trail") {
                     NVTrail(trail: trail, model: model)
+                }
+                ForEach(Array(row.list("trails").enumerated()), id: \.offset) { _, trail in
+                    NVTrail(trail: trail, model: model)
+                }
+                if let spark = row.node("spark") {
+                    NVSparkline(points: spark.numbers("pts"), color: spark.color("c") ?? model.accent)
                 }
                 if row.has("check") {
                     Image(systemName: "checkmark")
@@ -383,6 +398,13 @@ private struct NVTrail: View {
             Button(trail.str("t") ?? "") { model.act(trail.str("fn")) }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+        case "ibtn":
+            Button { model.act(trail.str("fn")) } label: {
+                Image(systemName: trail.str("sf") ?? "circle")
+            }
+            .buttonStyle(.borderless)
+            .tint(NVTone.color(trail.str("tone"), accent: model.accent, otherwise: model.accent))
+            .accessibilityLabel(trail.str("label") ?? "")
         default:
             Text(trail.str("t") ?? "").foregroundStyle(.secondary)
         }

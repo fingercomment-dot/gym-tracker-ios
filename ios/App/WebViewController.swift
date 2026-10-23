@@ -44,6 +44,8 @@ final class WebViewController: UIViewController {
     /// The phone's own tab bar over the page, and the workout list drawn by the app itself.
     private let nativeTabs = NativeTabs()
     private let workoutModel = WorkoutModel()
+    /// The page's sheets drawn as the iPhone's own.
+    private let nvSheets = NVSheets()
     private var workoutHost: UIHostingController<WorkoutScreen>?
     private var sentTabBarHeight: CGFloat = -1
 
@@ -99,6 +101,8 @@ final class WebViewController: UIViewController {
         nativeTabs.install(in: self, above: web)
         nativeTabs.onSelect = { [weak self] tab in self?.sendToApp(["type": "tab", "tab": tab]) }
         nativeTabs.send = { [weak self] message in self?.sendToApp(message) }
+        nvSheets.host = self
+        nvSheets.send = { [weak self] message in self?.sendToApp(message) }
         workoutModel.send = { [weak self] message in self?.sendToApp(message) }
 
         topSafe = web.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor)
@@ -193,6 +197,7 @@ final class WebViewController: UIViewController {
             if !nowOn {
                 self.nativeTabs.apply(["show": false])
                 self.nativeTabs.reset()
+                self.nvSheets.reset()
                 self.showWorkout(["show": false])
             }
             if !nowOn { self.setFullScreen(false) }
@@ -237,6 +242,7 @@ final class WebViewController: UIViewController {
         if let accent = (body["accent"] as? String).flatMap({ UIColor(hexString: $0) }) {
             workoutModel.accent = Color(uiColor: accent)
             nativeTabs.accent = Color(uiColor: accent)
+            nvSheets.accent = Color(uiColor: accent)
             nativeTabs.controller.tabBar.tintColor = accent
         }
         applyInterfaceStyle()
@@ -616,7 +622,7 @@ extension WebViewController: WKScriptMessageHandler {
                 "insets": focused ? insetsPayload() : NSNull(),
                 "picker": true,
                 "holdZones": true,
-                "ui": ["tabs": true, "workout": true, "nv": 1, "mini": NativeTabs.hasPlayerBar],
+                "ui": ["tabs": true, "workout": true, "nv": 2, "mini": NativeTabs.hasPlayerBar],
             ])
         case "ready":
             if appFrame == nil { appFrame = message.frameInfo }
@@ -647,6 +653,8 @@ extension WebViewController: WKScriptMessageHandler {
             setOverlay((body["on"] as? Bool) ?? false)
         case "nv":
             nativeTabs.setScreen(tab: body["tab"] as? String ?? "", screen: body["screen"] as? [String: Any], root: body["root"] as? [String: Any])
+        case "nvs":
+            nvSheets.apply(body["sheets"] as? [[String: Any]] ?? [])
         case "mini":
             nativeTabs.showMini(body)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.reportTabBar() }
@@ -720,6 +728,7 @@ extension WebViewController: WKNavigationDelegate {
         holdZones = [:]
         nativeTabs.apply(["show": false])
         nativeTabs.reset()
+        nvSheets.reset()
         showWorkout(["show": false])
         setNeedsStatusBarAppearanceUpdate()
         if AppSettings.focusMode, webView.url?.path.contains("/artifact") == true {

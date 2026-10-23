@@ -76,16 +76,23 @@ final class GymTrackerUITests: XCTestCase {
             XCTAssertGreaterThan(after, before + 10, "drag to reorder did not move the row (\(before) → \(after))")
         }
 
-        // a sheet of the page over the app's screen
+        // the weight sheet, drawn by the app: the wheels, then «Сохранить»
         let weight = app.buttons["nv.row.s:quick/q-weight"]
         if weight.waitForExistence(timeout: 3) {
             weight.tap()
+            let sheetBar = app.navigationBars["Вес сегодня"]
+            XCTAssertTrue(sheetBar.waitForExistence(timeout: 5), "the weight sheet did not come up")
             sleep(1)
-            let close = web.buttons["Закрыть окно"]
-            XCTAssertTrue(close.waitForExistence(timeout: 4), "the page's sheet did not show over Today")
-            shot("23-sheet-over-today")
-            if close.exists { close.tap() }
-            sleep(1)
+            shot("23-weight-sheet")
+            if app.pickerWheels.count > 0 {
+                app.pickerWheels.element(boundBy: 0).swipeUp()
+                sleep(2)
+                shot("23b-weight-turned")
+            }
+            let save = sheetBar.buttons["Сохранить"]
+            if save.exists { tapFrame(save) } else { app.swipeDown(velocity: .fast) }
+            sleep(2)
+            XCTAssertFalse(sheetBar.exists, "the weight sheet did not go away")
         } else {
             XCTFail("no weight row on Today")
         }
@@ -119,10 +126,18 @@ final class GymTrackerUITests: XCTestCase {
         app.swipeDown()
         sleep(1)
 
-        // start the workout from Today
+        // start the workout from Today: the readiness questions first, in the app's sheet
         let start = app.buttons["nv.btn.s:hero/Начать тренировку"]
         if start.waitForExistence(timeout: 3) {
             start.tap()
+            XCTAssertTrue(app.navigationBars["Как ты сегодня?"].waitForExistence(timeout: 5), "the readiness sheet did not come up")
+            sleep(1)
+            shot("27-checkin-sheet")
+            app.swipeUp()
+            sleep(1)
+            shot("28-checkin-bottom")
+            let go = app.buttons["nv.btn.foot0"]
+            if go.waitForExistence(timeout: 3) { go.tap() } else { XCTFail("no start button at the bottom of the readiness sheet") }
         } else {
             XCTFail("no start button on Today")
         }
@@ -206,6 +221,37 @@ final class GymTrackerUITests: XCTestCase {
             XCTAssertTrue(app.navigationBars["Программа"].waitForExistence(timeout: 5), "Program did not open")
             sleep(1)
             shot("44-program")
+        }
+
+        // Calendar: the iPhone's month calendar with the workouts' marks; a day opens in the app's sheet
+        app.tabBars.firstMatch.buttons["Календарь"].tap()
+        XCTAssertTrue(app.navigationBars["Календарь"].waitForExistence(timeout: 6), "Calendar drawn by the app did not come up")
+        sleep(2)
+        shot("50-calendar")
+        let day = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "15")).firstMatch
+        if day.waitForExistence(timeout: 3) {
+            day.tap()
+            sleep(2)
+            shot("51-day-sheet")
+            let close = app.navigationBars.buttons["Закрыть"].firstMatch
+            if close.exists { tapFrame(close) } else { app.swipeDown(velocity: .fast) }
+            sleep(2)
+        } else {
+            XCTFail("no day 15 in the calendar")
+        }
+        app.swipeUp()
+        sleep(1)
+        shot("52-calendar-bottom")
+
+        // Progress: Swift Charts
+        app.tabBars.firstMatch.buttons["Прогресс"].tap()
+        XCTAssertTrue(app.navigationBars["Прогресс"].waitForExistence(timeout: 6), "Progress drawn by the app did not come up")
+        sleep(2)
+        shot("60-progress")
+        for i in 1...4 {
+            app.swipeUp()
+            sleep(1)
+            shot("6\(i)-progress-more")
         }
         XCTAssertEqual(app.state, .runningForeground, "the app is not running at the end")
     }

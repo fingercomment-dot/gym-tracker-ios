@@ -88,11 +88,39 @@ enum DemoPage {
     /* Today and Settings, drawn by the app from what the web app sends (captured on test data) */
     \#(DemoScreens.js)
     let moreSub = null;
-    const nativeTab = () => !W.on && (tab === 'today' || tab === 'more');
+    /* Calendar stays the page's own (the wheels and the menu checks use it) until Today has been opened */
+    let calNative = false;
+    const nativeTab = () => !W.on && (tab === 'today' || tab === 'more' || tab === 'progress' || (tab === 'calendar' && calNative));
     function nvSend() {
       document.documentElement.classList.toggle('nunder', W.on || nativeTab());
       if (tab === 'today') N.postMessage({ type: 'nv', tab: 'today', screen: NVS.today, root: null });
       if (tab === 'more') N.postMessage({ type: 'nv', tab: 'more', screen: moreSub ? NVS[moreSub] : NVS.more, root: moreSub ? NVS.more : null });
+      if (tab === 'progress') N.postMessage({ type: 'nv', tab: 'progress', screen: NVS.progress, root: null });
+      if (tab === 'calendar') N.postMessage({ type: 'nv', tab: 'calendar', screen: calNative ? NVS.calendar : null, root: null });
+    }
+    /* the sheets the app draws: the web app's own sheets, captured */
+    let SH = [];
+    const nvsSend = () => N.postMessage({ type: 'nvs', sheets: SH });
+    const openNv = list => { SH = SH.concat(list.map(x => JSON.parse(JSON.stringify(x)))); nvsSend(); };
+    function sheetAct(f, d) {
+      const i = SH.findIndex(sh => findFn(sh, f, null));
+      if (i < 0) return false;
+      const sh = SH[i];
+      const closeHere = () => { SH = SH.slice(0, i); nvsSend(); };
+      if (sh.kind === 'actions') { closeHere(); return true; }
+      if (f === sh.close || (sh.left && f === sh.left.fn) || (sh.right && f === sh.right.fn)) { closeHere(); return true; }
+      if ((sh.foot || []).some(b => b.fn === f)) {
+        closeHere();
+        if (/Начать/.test(sh.foot[0].t || '')) { W.on = true; sendWorkout(); }
+        return true;
+      }
+      const hit = findFn(sh, f, null); const n = hit.node;
+      if (n.k === 'row' && n.tt === 'bad' && NVS.sheets.session[1]) { openNv([NVS.sheets.session[1]]); return true; }
+      if (n.k === 'toggle') n.on = !!d.v;
+      else if (n.k === 'seg') n.sel = String(d.v);
+      else if (n.k === 'wheels' && Array.isArray(d.v)) n.cols.forEach((c, k) => { c.sel = d.v[k]; });
+      nvsSend();
+      return true;
     }
     /* the thing whose function the app sent back, and what holds it */
     function findFn(node, fn, parent) {
@@ -107,8 +135,17 @@ enum DemoPage {
     function nvAct(d) {
       const f = String(d.fn || '');
       log.textContent = 'nva ' + f + (d.v !== undefined ? ' = ' + JSON.stringify(d.v) : '');
-      if (f.indexOf('q-weight') >= 0) { openSheet(); return; }
-      if (f.indexOf('Начать тренировку') >= 0) { W.on = true; sendWorkout(); return; }
+      if (d.tab === 'sheets' || SH.length) { if (sheetAct(f, d)) return; }
+      if (f.indexOf('q-weight') >= 0) { openNv(NVS.sheets.weight); return; }
+      if (f.indexOf('q-sleep') >= 0) { openNv(NVS.sheets.sleep); return; }
+      if (f.indexOf('q-cardio') >= 0) { openNv(NVS.sheets.cardio); return; }
+      if (f.indexOf('Начать тренировку') >= 0) { openNv(NVS.sheets.start); return; }
+      if (f.indexOf('Последняя тренировка') >= 0) { openNv([NVS.sheets.session[0]]); return; }
+      if (d.tab === 'calendar') {
+        if (f.indexOf(':mfn') >= 0) return;
+        if (f.indexOf('month') >= 0) { openNv(NVS.sheets.day); return; }
+        if (f.indexOf('Спланировать') >= 0) { openNv(NVS.sheets.planweek); return; }
+      }
       if (f.indexOf('/Оформление:fn') >= 0) { moreSub = 'look'; nvSend(); return; }
       if (f.indexOf('/Программа:fn') >= 0) { moreSub = 'program'; nvSend(); return; }
       if (/:back$/.test(f)) { moreSub = null; nvSend(); return; }
@@ -152,7 +189,7 @@ enum DemoPage {
     document.getElementById('go').onclick = () => { W.on = true; sendWorkout(); };
 
     window.__gymNative = d => {
-      if (d.type === 'tab') { tab = d.tab; document.getElementById('tabtitle').textContent = TABS.find(t => t[0] === tab)[1]; tabs(true); nvSend(); }
+      if (d.type === 'tab') { tab = d.tab; if (tab === 'today') calNative = true; document.getElementById('tabtitle').textContent = TABS.find(t => t[0] === tab)[1]; tabs(true); nvSend(); }
       if (d.type === 'wact') act(d);
       if (d.type === 'nva') { nvAct(d); return true; }
       if (d.type === 'mini' && d.a === 'open') { W.on = true; sendWorkout(); }
