@@ -48,7 +48,6 @@ struct NVScreenView: View {
                 }
             }
         }
-        .accessibilityIdentifier("nv.screen." + screen.id)
     }
 }
 
@@ -539,7 +538,7 @@ struct NVButton: View {
     var body: some View {
         let label = HStack(spacing: 6) {
             if let sf = btn.str("sf") { Image(systemName: sf) }
-            Text(btn.str("t") ?? "").lineLimit(1)
+            Text(btn.str("t") ?? "").lineLimit(1).minimumScaleFactor(0.7).allowsTightening(true)
         }
         .frame(maxWidth: full ? .infinity : nil)
         Group {

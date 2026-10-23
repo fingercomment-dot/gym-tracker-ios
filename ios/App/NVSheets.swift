@@ -155,7 +155,6 @@ struct NVSheetView: View {
                     }
                 }
                 .modifier(NVSheetFoot(buttons: sheet.list("foot"), model: model))
-                .accessibilityIdentifier("nv.sheet." + (sheet.str("id") ?? ""))
             }
         }
         .tint(model.accent)

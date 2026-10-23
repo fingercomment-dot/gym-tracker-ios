@@ -28,6 +28,10 @@ final class GymTrackerUITests: XCTestCase {
 
     /// iOS 26 glass bar buttons give the test no point to tap: tap the middle of the element's frame.
     private func tapFrame(_ element: XCUIElement) {
+        guard element.exists else {
+            XCTFail("nothing to tap: \(element)")
+            return
+        }
         if element.isHittable {
             element.tap()
         } else {
@@ -65,16 +69,20 @@ final class GymTrackerUITests: XCTestCase {
             XCTFail("no fold on the exercises' section")
         }
 
-        // press and drag an exercise further down
-        let third = app.buttons["nv.row.s:plan/ex:A3"]
-        if firstExercise.exists, third.exists {
+        // press and drag an exercise below the next one (both in sight, above the tab bar)
+        app.swipeUp()
+        sleep(1)
+        let nextExercise = app.buttons["nv.row.s:plan/ex:A2"]
+        if firstExercise.exists, nextExercise.exists {
             let before = firstExercise.frame.minY
-            firstExercise.press(forDuration: 1.0, thenDragTo: third)
+            firstExercise.press(forDuration: 1.2, thenDragTo: nextExercise, withVelocity: .slow, thenHoldForDuration: 0.6)
             sleep(2)
             shot("22-today-dragged")
             let after = app.buttons["nv.row.s:plan/ex:A1"].frame.minY
             XCTAssertGreaterThan(after, before + 10, "drag to reorder did not move the row (\(before) → \(after))")
         }
+        app.swipeDown()
+        sleep(1)
 
         // the weight sheet, drawn by the app: the wheels, then «Сохранить»
         let weight = app.buttons["nv.row.s:quick/q-weight"]
