@@ -69,17 +69,28 @@ final class GymTrackerUITests: XCTestCase {
             XCTFail("no fold on the exercises' section")
         }
 
-        // press and drag an exercise below the next one (both in sight, above the tab bar)
+        // «Изменить»: the iPhone's handles; drag the first exercise below the next one
         app.swipeUp()
         sleep(1)
+        let edit = app.buttons["nv.edit.s:plan"]
         let nextExercise = app.buttons["nv.row.s:plan/ex:A2"]
-        if firstExercise.exists, nextExercise.exists {
+        if edit.waitForExistence(timeout: 3), firstExercise.exists, nextExercise.exists {
+            edit.tap()
+            sleep(1)
+            shot("22a-today-edit")
             let before = firstExercise.frame.minY
-            firstExercise.press(forDuration: 1.2, thenDragTo: nextExercise, withVelocity: .slow, thenHoldForDuration: 0.6)
+            let handleX = app.frame.width - 44
+            let start = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: handleX, dy: firstExercise.frame.midY))
+            let end = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: handleX, dy: nextExercise.frame.maxY + 8))
+            start.press(forDuration: 0.5, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.4)
             sleep(2)
             shot("22-today-dragged")
             let after = app.buttons["nv.row.s:plan/ex:A1"].frame.minY
-            XCTAssertGreaterThan(after, before + 10, "drag to reorder did not move the row (\(before) → \(after))")
+            XCTAssertGreaterThan(after, before + 10, "reordering did not move the row (\(before) → \(after))")
+            edit.tap()
+            sleep(1)
+        } else {
+            XCTFail("no «Изменить» on the exercises")
         }
         app.swipeDown()
         sleep(1)

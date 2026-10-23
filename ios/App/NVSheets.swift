@@ -134,6 +134,7 @@ final class NVSheets: NSObject, UIAdaptivePresentationControllerDelegate {
 /// A sheet of the page: the title and its two buttons in the bar, the grouped list, the main button at the bottom.
 struct NVSheetView: View {
     @ObservedObject var model: NVTabModel
+    @State private var editMode: EditMode = .inactive
 
     var body: some View {
         NavigationStack {
@@ -144,6 +145,8 @@ struct NVSheetView: View {
                     }
                 }
                 .listStyle(.insetGrouped)
+                .environment(\.editMode, $editMode)
+                .environment(\.locale, Locale(identifier: sheet.str("loc") ?? "ru_RU"))
                 .navigationTitle(sheet.str("title") ?? "")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {

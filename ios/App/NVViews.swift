@@ -30,6 +30,7 @@ struct NVTabRoot: View {
 struct NVScreenView: View {
     let screen: NVNode
     @ObservedObject var model: NVTabModel
+    @State private var editMode: EditMode = .inactive
 
     var body: some View {
         List {
@@ -38,6 +39,8 @@ struct NVScreenView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .environment(\.editMode, $editMode)
+        .environment(\.locale, Locale(identifier: screen.str("loc") ?? "ru_RU"))
         .navigationTitle(screen.str("title") ?? "")
         .navigationBarTitleDisplayMode(.large)
         .modifier(NVSubtitle(text: screen.str("sub")))
@@ -128,7 +131,7 @@ struct NVSectionView: View {
                 model.act(fold.str("fn"), next)
             }
         } footer: {
-            if let foot = sec.str("f") { Text(foot) }
+            if open, let foot = sec.str("f") { Text(foot) }
         }
         .onChange(of: pageOpen) { _, _ in openLocal = nil }
     }
@@ -141,6 +144,7 @@ private struct NVSectionHeader: View {
     let open: Bool
     @ObservedObject var model: NVTabModel
     let toggle: () -> Void
+    @Environment(\.editMode) private var editMode
 
     var body: some View {
         let page = weeks.flatMap { w -> NVNode? in
@@ -179,13 +183,25 @@ private struct NVSectionHeader: View {
                         .rotationEffect(.degrees(open ? 90 : 0))
                 }
             }
-            if sec.has("fold") {
-                Button(action: toggle) { content.contentShape(Rectangle()) }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("nv.fold." + sec.id)
-                    .accessibilityValue(open ? "1" : "0")
-            } else {
-                content
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                if sec.has("fold") {
+                    Button(action: toggle) { content.contentShape(Rectangle()) }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("nv.fold." + sec.id)
+                        .accessibilityValue(open ? "1" : "0")
+                } else {
+                    content
+                }
+                // rows that can go in a new order: the iPhone's edit mode with its handles
+                if let editLabel = sec.str("edit"), open {
+                    let editing = editMode?.wrappedValue.isEditing ?? false
+                    Button(editing ? (sec.str("done") ?? "Готово") : editLabel) {
+                        withAnimation { editMode?.wrappedValue = editing ? .inactive : .active }
+                    }
+                    .buttonStyle(.borderless)
+                    .fontWeight(.semibold)
+                    .accessibilityIdentifier("nv.edit." + sec.id)
+                }
             }
         }
     }

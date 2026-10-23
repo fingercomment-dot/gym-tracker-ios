@@ -101,9 +101,14 @@ struct NVCalendarRow: UIViewRepresentable {
         var marks: [String: Mark] = [:]
         var shownMonth: String?
 
+        /// The calendar's own marks: a dot in the workout's colour when one was done, a ring when one is planned,
+        /// a runner for a run or a ski.
         func calendarView(_ calendarView: UICalendarView, decorationFor dateComponents: DateComponents) -> UICalendarView.Decoration? {
             guard let key = NVCalendarRow.key(dateComponents), let mark = marks[key] else { return nil }
-            return .customView { NVCalendarRow.markView(mark) }
+            if let hex = mark.done.first { return .default(color: UIColor(hexString: hex) ?? .systemBlue, size: .large) }
+            if let hex = mark.planned.first { return .image(UIImage(systemName: "circle"), color: UIColor(hexString: hex) ?? .systemGray, size: .small) }
+            if mark.cardio { return .image(UIImage(systemName: "figure.run"), color: .secondaryLabel, size: .small) }
+            return nil
         }
 
         func dateSelection(_ selection: UICalendarSelectionSingleDate, didSelectDate dateComponents: DateComponents?) {
@@ -119,37 +124,6 @@ struct NVCalendarRow: UIViewRepresentable {
             shownMonth = month
             model?.act(row?.str("mfn"), month)
         }
-    }
-
-    /// The marks under a day: up to three dots or rings, a runner for a run.
-    static func markView(_ mark: Mark) -> UIView {
-        let stack = UIStackView()
-        stack.axis = .horizontal
-        stack.spacing = 2
-        stack.alignment = .center
-        func dot(_ hex: String, ring: Bool) -> UIView {
-            let v = UIView()
-            let color = UIColor(hexString: hex) ?? .systemGray
-            v.translatesAutoresizingMaskIntoConstraints = false
-            v.widthAnchor.constraint(equalToConstant: 6).isActive = true
-            v.heightAnchor.constraint(equalToConstant: 6).isActive = true
-            v.layer.cornerRadius = 3
-            if ring {
-                v.layer.borderWidth = 1.2
-                v.layer.borderColor = color.cgColor
-            } else {
-                v.backgroundColor = color
-            }
-            return v
-        }
-        for hex in mark.done.prefix(3) { stack.addArrangedSubview(dot(hex, ring: false)) }
-        for hex in mark.planned.prefix(max(0, 3 - mark.done.count)) { stack.addArrangedSubview(dot(hex, ring: true)) }
-        if mark.cardio {
-            let image = UIImageView(image: UIImage(systemName: "figure.run", withConfiguration: UIImage.SymbolConfiguration(pointSize: 7, weight: .bold)))
-            image.tintColor = .secondaryLabel
-            stack.addArrangedSubview(image)
-        }
-        return stack
     }
 }
 

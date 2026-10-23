@@ -34,6 +34,8 @@ targets:
         CFBundleDisplayName: Gym Tracker
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleDevelopmentRegion: ru
+        CFBundleLocalizations: [ru, en]
         LSRequiresIPhoneOS: true
         ITSAppUsesNonExemptEncryption: false
         NSSupportsLiveActivities: true
