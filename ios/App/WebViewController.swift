@@ -33,6 +33,8 @@ final class WebViewController: UIViewController {
     private var pageColors: [String: String] = [:]
     /// The phone's own wheels, docked at the bottom when the page asks for them.
     private var pickerPanel: PickerPanel?
+    /// Press-and-hold menus the page has described, by id: its links to gymtracker://hold/<id> get them.
+    private var holdMenus: [String: [String: Any]] = [:]
 
     init(url: URL) {
         startURL = url
@@ -65,7 +67,9 @@ final class WebViewController: UIViewController {
         web.navigationDelegate = self
         web.uiDelegate = self
         web.allowsBackForwardNavigationGestures = false
-        web.allowsLinkPreview = false
+        // a press and hold on a link asks us for a menu: the page's own buttons with a menu get the phone's
+        // context menu, every other link gets nothing (as before)
+        web.allowsLinkPreview = true
         web.isOpaque = false
         web.backgroundColor = .clear
         web.scrollView.backgroundColor = .clear
@@ -248,6 +252,29 @@ final class WebViewController: UIViewController {
                    done: body["done"] as? String ?? "Готово", columns: columns)
     }
 
+    // MARK: - Press-and-hold menus
+
+    static let holdScheme = "gymtracker"
+
+    /// The menu the page described for gymtracker://hold/<id>, as the phone's own menu; a pick goes back to the page.
+    fileprivate func holdMenu(for url: URL?) -> UIMenu? {
+        guard let url, url.scheme == Self.holdScheme, url.host == "hold",
+              let id = url.pathComponents.dropFirst().first, let def = holdMenus[id] else { return nil }
+        let items = def["items"] as? [[String: Any]] ?? []
+        let actions: [UIMenuElement] = items.compactMap { (item: [String: Any]) -> UIMenuElement? in
+            guard let key = item["id"] as? String else { return nil }
+            let sub = item["sub"] as? String
+            let image = (item["sf"] as? String).flatMap { $0.isEmpty ? nil : UIImage(systemName: $0) }
+            let action = UIAction(title: item["title"] as? String ?? "", subtitle: sub?.isEmpty == false ? sub : nil, image: image) { [weak self] _ in
+                self?.sendToApp(["type": "hold", "id": id, "pick": key])
+            }
+            if (item["on"] as? Bool) == true { action.state = .on }
+            return action
+        }
+        guard !actions.isEmpty else { return nil }
+        return UIMenu(title: def["title"] as? String ?? "", children: actions)
+    }
+
     // MARK: - The app's own menu (Settings in the app, or shake the phone)
 
     func showAppMenu() {
@@ -419,6 +446,7 @@ extension WebViewController: WKScriptMessageHandler {
                 "focus": focused,
                 "insets": focused ? insetsPayload() : NSNull(),
                 "picker": true,
+                "hold": true,
             ])
         case "ready":
             if appFrame == nil { appFrame = message.frameInfo }
@@ -435,6 +463,8 @@ extension WebViewController: WKScriptMessageHandler {
             showAppMenu()
         case "picker":
             handlePicker(body)
+        case "holdMenu":
+            if let id = body["id"] as? String { holdMenus[id] = body }
         default:
             break
         }
@@ -461,6 +491,11 @@ extension WebViewController: WKNavigationDelegate {
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         guard let url = navigationAction.request.url, let scheme = url.scheme?.lowercased() else {
             decisionHandler(.allow)
+            return
+        }
+        if scheme == Self.holdScheme {
+            // a tap on a button with a menu: the page runs it itself
+            decisionHandler(.cancel)
             return
         }
         if !["http", "https", "about", "blob", "data", "javascript"].contains(scheme) {
@@ -496,6 +531,7 @@ extension WebViewController: WKNavigationDelegate {
         appFrame = nil
         appIsWholePage = false
         pickerPanel?.hide(notify: false)
+        holdMenus = [:]
         setNeedsStatusBarAppearanceUpdate()
         if AppSettings.focusMode, webView.url?.path.contains("/artifact") == true {
             hidePage(for: 8)
@@ -540,6 +576,20 @@ extension WebViewController: WKUIDelegate {
         topPresenter().present(sheet, animated: true)
         popup = sheet
         return popupWeb
+    }
+
+    /// Press and hold on a link: the phone's own menu for the page's buttons with a menu (the button lifts, the
+    /// screen blurs, a finger slides to a pick); nothing for any other link.
+    func webView(_ webView: WKWebView, contextMenuConfigurationForElement elementInfo: WKContextMenuElementInfo, completionHandler: @escaping (UIContextMenuConfiguration?) -> Void) {
+        guard let menu = holdMenu(for: elementInfo.linkURL) else {
+            completionHandler(nil)
+            return
+        }
+        completionHandler(UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in menu })
+    }
+
+    /// A tap on the lifted button just closes the menu (there is no page behind the link).
+    func webView(_ webView: WKWebView, contextMenuForElement elementInfo: WKContextMenuElementInfo, willCommitWithAnimator animator: UIContextMenuInteractionCommitAnimating) {
     }
 
     func webViewDidClose(_ webView: WKWebView) {
