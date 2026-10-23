@@ -227,12 +227,15 @@ struct WorkoutScreen: View {
                 }
                 .accessibilityIdentifier("workout.minimize")
             }
-            // the rest and the workout's time on the right: they stay in sight with the big title too
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                RestTimer(rest: st.rest, restLabel: st.label("rest"), noRestLabel: st.label("noRest"), accent: model.accent)
-                Text(Date(timeIntervalSince1970: st.startedAt / 1000), style: .timer)
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
+            // the rest and the workout's time on the right: they stay in sight with the big title too.
+            // Plain text that changes every second (not a self-updating timer text): the bar measures it anew each time,
+            // so it never gets squeezed into the round button shape («0:…»).
+            ToolbarItem(placement: .topBarTrailing) {
+                HStack(spacing: 12) {
+                    RestTimer(rest: st.rest, restLabel: st.label("rest"), noRestLabel: st.label("noRest"), accent: model.accent)
+                    WorkoutClock(startedAt: st.startedAt)
+                }
+                .fixedSize()
             }
         }
     }
@@ -462,6 +465,27 @@ private struct SetWheels: View {
 
 /// The rest in the navigation bar: counting down (and past the end with a minus, in orange), or the time since the
 /// first half of a superset.
+/// How long the workout has been going: 12:54, then 1:02:03.
+private struct WorkoutClock: View {
+    let startedAt: Double
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            Text(Self.text(context.date.timeIntervalSince1970 - startedAt / 1000))
+        }
+        .monospacedDigit()
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
+        .fixedSize()
+        .accessibilityIdentifier("workout.clock")
+    }
+
+    static func text(_ seconds: Double) -> String {
+        let s = max(0, Int(seconds))
+        return s >= 3600 ? String(format: "%d:%02d:%02d", s / 3600, s / 60 % 60, s % 60) : String(format: "%d:%02d", s / 60, s % 60)
+    }
+}
+
 private struct RestTimer: View {
     let rest: WorkoutState.Rest?
     let restLabel: String

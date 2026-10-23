@@ -52,7 +52,7 @@ enum DemoPage {
     /* a workout like the real one: pull-ups, bench, a superset */
     const plural = n => (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) ? 'раза' : 'раз';
     const kgVals = []; for (let v = 0; v <= 150 + 1e-9; v += 2.5) kgVals.push(+v.toFixed(2));
-    const W = { on: false, warm: false, rest: null, startedAt: Date.now() - 754000, blocks: [
+    const W = { on: false, warm: false, rest: null, startedAt: Date.now() - 4000, blocks: [
       { title: 'Подтягивания прямым хватом', sub: 'лесенка 4 · 3 · 3 · 3', info: true, open: true, items: [{ name: 'Подтягивания прямым хватом', bw: true, sets: [[0, 4], [0, 3], [0, 3], [0, 3]], done: 0 }] },
       { title: 'Жим штанги лёжа', sub: '3 × 6–10 · отдых 3:00 · 30 кг', info: true, open: false, items: [{ name: 'Жим штанги лёжа', sets: [[30, 8], [30, 8], [30, 8]], done: 0 }] },
       { title: 'Бицепс + Трицепс', sub: 'суперсет · 3 круга · отдых 2:45', info: false, open: false, ss: true, items: [
