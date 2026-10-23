@@ -19,6 +19,15 @@
       "screenshotURLs": [],
       "versions": [
         {
+          "version": "1.0.5",
+          "buildVersion": "5",
+          "date": "2026-10-23T10:24:38Z",
+          "localizedDescription": "Барабаны раздвинуты к краям, «кг» и «раз» больше не листаются; системное меню по удержанию",
+          "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.5/GymTracker.ipa",
+          "size": 686968,
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.0.4",
           "buildVersion": "4",
           "date": "2026-10-23T09:26:26Z",
@@ -59,11 +68,11 @@
         "entitlements": [],
         "privacy": {}
       },
-      "version": "1.0.4",
-      "versionDate": "2026-10-23T09:26:26Z",
-      "versionDescription": "Настоящие барабаны iPhone для подходов, бега и лыж; тёмно-серая плашка на экране блокировки",
-      "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.4/GymTracker.ipa",
-      "size": 679462
+      "version": "1.0.5",
+      "versionDate": "2026-10-23T10:24:38Z",
+      "versionDescription": "Барабаны раздвинуты к краям, «кг» и «раз» больше не листаются; системное меню по удержанию",
+      "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.5/GymTracker.ipa",
+      "size": 686968
     }
   ],
   "news": []
