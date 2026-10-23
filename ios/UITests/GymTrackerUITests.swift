@@ -112,7 +112,13 @@ final class GymTrackerUITests: XCTestCase {
             sleep(1)
         }
 
-        app.buttons["workout.minimize"].firstMatch.tap()
+        // iOS 26 glass bar buttons give the test no point to tap: tap where the button is (top left)
+        let minimize = app.buttons["workout.minimize"].firstMatch
+        if minimize.isHittable {
+            minimize.tap()
+        } else {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.1)).tap()
+        }
         sleep(1)
         shot("20-minimized")
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 5), "the tab bar did not come back")

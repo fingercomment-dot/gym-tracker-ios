@@ -486,6 +486,7 @@ private struct RestTimer: View {
             .labelStyle(.titleAndIcon)
             .font(.headline)
             .monospacedDigit()
+            .fixedSize()
         }
     }
 
