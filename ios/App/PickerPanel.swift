@@ -11,28 +11,7 @@ import UIKit
 /// against the right — and its unit («кг», «раз») stays still beside the middle row like on the timer, so a finger
 /// can't catch it and drag it along.
 final class PickerPanel: UIView {
-    struct Column {
-        var rows: [String]
-        /// The unit beside the value: none, one for every row, or one per row («1 раз», «2 раза»).
-        var units: [String]
-        var label: String
-        var selected: Int
-
-        init?(json: [String: Any]) {
-            guard let raw = json["rows"] as? [Any], !raw.isEmpty else { return nil }
-            rows = raw.map { "\($0)" }
-            units = (json["units"] as? [Any])?.map { "\($0)" } ?? []
-            label = json["label"] as? String ?? ""
-            let sel = (json["sel"] as? NSNumber)?.intValue ?? 0
-            selected = min(max(sel, 0), rows.count - 1)
-        }
-
-        func unit(at row: Int) -> String? {
-            if units.isEmpty { return nil }
-            if units.count == 1 { return units[0] }
-            return units[min(max(row, 0), units.count - 1)]
-        }
-    }
+    typealias Column = WheelColumn
 
     /// Messages for the page.
     var onEvent: (([String: Any]) -> Void)?
@@ -46,20 +25,9 @@ final class PickerPanel: UIView {
     private let titleLabel = UILabel()
     private let subLabel = UILabel()
     private let doneButton = UIButton(configuration: .plain())
-    private let wheels = WheelsBox()
-    /// One drum per column. Each drum carries its own column, so what it shows can't get out of step with it.
-    private var drums: [Drum] = []
+    private let wheels = WheelsView()
 
     private var labelColor: UIColor = .label
-
-    fileprivate static let valueFont = UIFont.monospacedDigitSystemFont(ofSize: 23, weight: .regular)
-    fileprivate static let unitFont = UIFont.systemFont(ofSize: 17, weight: .semibold)
-    private static let rowHeight: CGFloat = 34
-    /// Space between a value and its unit.
-    fileprivate static let unitGap: CGFloat = 6
-    /// From the panel's sides to the outer drums, and between two drums.
-    private static let sideInset: CGFloat = 12
-    private static let columnGap: CGFloat = 10
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -110,7 +78,10 @@ final class PickerPanel: UIView {
         header.addSubview(doneButton)
 
         wheels.translatesAutoresizingMaskIntoConstraints = false
-        wheels.onLayout = { [weak self] in self?.layoutDrums() }
+        wheels.onChange = { [weak self] selection in
+            guard let self, let id = self.id else { return }
+            self.onEvent?(["type": "picker", "id": id, "ev": "change", "sel": selection])
+        }
         card.addSubview(wheels)
 
         NSLayoutConstraint.activate([
@@ -157,10 +128,7 @@ final class PickerPanel: UIView {
         titleLabel.textColor = labelColor
         subLabel.textColor = secondary ?? .secondaryLabel
         doneButton.tintColor = tint ?? tintColor
-        for drum in drums {
-            drum.unitLabel.textColor = labelColor
-            drum.reloadAllComponents()
-        }
+        wheels.labelColor = labelColor
     }
 
     // MARK: - Showing and hiding
@@ -179,7 +147,7 @@ final class PickerPanel: UIView {
         hiding = false
         // our own size first: the drums are made at their final width
         superview?.layoutIfNeeded()
-        setUpDrums(columns)
+        wheels.setColumns(columns)
         layoutIfNeeded()
 
         if wasHidden { transform = CGAffineTransform(translationX: 0, y: bounds.height + 40) }
@@ -195,7 +163,7 @@ final class PickerPanel: UIView {
         guard !isHidden, !hiding else { return }
         hiding = true
         let closed = id
-        let selection = drums.map { $0.column.selected }
+        let selection = wheels.selection
         id = nil
         UIView.animate(withDuration: 0.28, delay: 0, options: [.curveEaseIn, .beginFromCurrentState]) {
             self.transform = CGAffineTransform(translationX: 0, y: self.bounds.height + 40)
@@ -231,184 +199,6 @@ final class PickerPanel: UIView {
             }
         default:
             break
-        }
-    }
-
-    // MARK: - The drums
-
-    /// Fresh drums for these columns (the same ones, given new values, when the number of columns is the same).
-    /// A drum gets its column before it is told who feeds it, so any question it asks right away has an answer.
-    private func setUpDrums(_ columns: [Column]) {
-        if drums.count != columns.count {
-            for drum in drums {
-                drum.dataSource = nil
-                drum.delegate = nil
-                drum.removeFromSuperview()
-                drum.unitLabel.removeFromSuperview()
-            }
-            drums = columns.enumerated().map { c, column in
-                let drum = Drum(column: column)
-                drum.accessibilityIdentifier = "picker.drum.\(c)"
-                drum.unitLabel.textColor = labelColor
-                drum.dataSource = self
-                drum.delegate = self
-                wheels.addSubview(drum)
-                // the unit goes over the drum and takes no touches: a drag on «кг» turns the weight drum
-                wheels.addSubview(drum.unitLabel)
-                return drum
-            }
-        } else {
-            for (drum, column) in zip(drums, columns) {
-                drum.column = column
-                drum.unitLabel.textColor = labelColor
-            }
-        }
-        layoutDrums()
-        for drum in drums {
-            drum.reloadAllComponents()
-            drum.selectRow(drum.column.selected, inComponent: 0, animated: false)
-        }
-    }
-
-    /// The drums side by side across the panel; each unit right after where its column's values end.
-    private func layoutDrums() {
-        let n = drums.count
-        guard n > 0 else { return }
-        let box = wheels.bounds
-        let width = (box.width - Self.sideInset * 2 - Self.columnGap * CGFloat(n - 1)) / CGFloat(n)
-        guard width > 20 else { return }
-        for (c, drum) in drums.enumerated() {
-            let frame = CGRect(x: Self.sideInset + CGFloat(c) * (width + Self.columnGap), y: 0, width: width, height: box.height)
-            drum.frame = frame
-            let component = drum.componentWidth
-            let start = max(0, (component - drum.numberWidth - drum.unitSpace) / 2)
-            let x = frame.minX + (frame.width - component) / 2 + start + drum.numberWidth + Self.unitGap
-            drum.unitLabel.frame = CGRect(x: x, y: frame.midY - 15, width: drum.unitWidth + 4, height: 30)
-        }
-    }
-}
-
-extension PickerPanel: UIPickerViewDataSource, UIPickerViewAccessibilityDelegate {
-    func numberOfComponents(in pickerView: UIPickerView) -> Int {
-        1
-    }
-
-    func pickerView(_ pickerView: UIPickerView, numberOfRowsInComponent component: Int) -> Int {
-        (pickerView as? Drum)?.column.rows.count ?? 0
-    }
-
-    func pickerView(_ pickerView: UIPickerView, widthForComponent component: Int) -> CGFloat {
-        (pickerView as? Drum)?.componentWidth ?? 60
-    }
-
-    func pickerView(_ pickerView: UIPickerView, rowHeightForComponent component: Int) -> CGFloat {
-        Self.rowHeight
-    }
-
-    func pickerView(_ pickerView: UIPickerView, viewForRow row: Int, forComponent component: Int, reusing view: UIView?) -> UIView {
-        let cell = (view as? WheelRow) ?? WheelRow()
-        guard let drum = pickerView as? Drum else {
-            cell.label.text = nil
-            return cell
-        }
-        let rows = drum.column.rows
-        let text = rows.indices.contains(row) ? rows[row] : nil
-        cell.numberWidth = drum.numberWidth
-        cell.unitSpace = drum.unitSpace
-        cell.label.textColor = labelColor
-        cell.label.text = text
-        cell.accessibilityLabel = text
-        cell.setNeedsLayout()
-        return cell
-    }
-
-    func pickerView(_ pickerView: UIPickerView, didSelectRow row: Int, inComponent component: Int) {
-        guard let drum = pickerView as? Drum, drum.column.rows.indices.contains(row) else { return }
-        drum.column.selected = row
-        drum.unitLabel.text = drum.column.unit(at: row)
-        guard let id else { return }
-        onEvent?(["type": "picker", "id": id, "ev": "change", "sel": drums.map { $0.column.selected }])
-    }
-
-    func pickerView(_ pickerView: UIPickerView, accessibilityLabelForComponent component: Int) -> String? {
-        guard let label = (pickerView as? Drum)?.column.label, !label.isEmpty else { return nil }
-        return label
-    }
-}
-
-/// One drum: a picker that carries its column and its sizes, and the unit label that stands beside it.
-private final class Drum: UIPickerView {
-    var column: PickerPanel.Column {
-        didSet { measure() }
-    }
-    /// The widest value of the column: the values line up on their right edge, the unit goes after it.
-    private(set) var numberWidth: CGFloat = 0
-    private(set) var unitWidth: CGFloat = 0
-    let unitLabel = UILabel()
-
-    var unitSpace: CGFloat { column.units.isEmpty ? 0 : PickerPanel.unitGap + unitWidth }
-    var componentWidth: CGFloat { max(60, bounds.width - 16) }
-
-    init(column: PickerPanel.Column) {
-        self.column = column
-        super.init(frame: .zero)
-        unitLabel.font = PickerPanel.unitFont
-        unitLabel.isUserInteractionEnabled = false
-        measure()
-    }
-
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-
-    private func measure() {
-        numberWidth = Self.width(of: column.rows, font: PickerPanel.valueFont) + 2
-        unitWidth = Self.width(of: column.units, font: PickerPanel.unitFont)
-        unitLabel.text = column.unit(at: column.selected)
-        unitLabel.isHidden = column.units.isEmpty
-    }
-
-    private static func width(of texts: [String], font: UIFont) -> CGFloat {
-        let attributes: [NSAttributedString.Key: Any] = [.font: font]
-        return texts.reduce(0) { max($0, ceil(($1 as NSString).size(withAttributes: attributes).width)) }
-    }
-}
-
-/// The strip the drums sit in: lays them out itself, once its own size is known.
-private final class WheelsBox: UIView {
-    var onLayout: (() -> Void)?
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        onLayout?()
-    }
-}
-
-/// A row of a drum: the value, right-aligned where the column's values end (so «7» and «12,5» line up and the unit
-/// can stand still right after them), or centred when the column has no unit.
-private final class WheelRow: UIView {
-    let label = UILabel()
-    var numberWidth: CGFloat = 0
-    var unitSpace: CGFloat = 0
-
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        isAccessibilityElement = true
-        label.font = PickerPanel.valueFont
-        label.adjustsFontSizeToFitWidth = true
-        label.minimumScaleFactor = 0.7
-        addSubview(label)
-    }
-
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        if unitSpace > 0 {
-            let start = max(0, (bounds.width - numberWidth - unitSpace) / 2)
-            label.textAlignment = .right
-            label.frame = CGRect(x: start, y: 0, width: min(numberWidth, bounds.width), height: bounds.height)
-        } else {
-            label.textAlignment = .center
-            label.frame = bounds
         }
     }
 }

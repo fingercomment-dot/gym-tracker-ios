@@ -1,3 +1,4 @@
+import SwiftUI
 import UIKit
 import WebKit
 
@@ -40,6 +41,11 @@ final class WebViewController: UIViewController {
     private var activeHold: (id: String, zone: HoldZone)?
     /// A test page instead of the app (UI checks in CI: launch argument -GymDemo).
     private var demoHTML: String?
+    /// The phone's own tab bar over the page, and the workout list drawn by the app itself.
+    private let nativeTabs = NativeTabs()
+    private let workoutModel = WorkoutModel()
+    private var workoutHost: UIHostingController<WorkoutScreen>?
+    private var sentTabBarHeight: CGFloat = -1
 
     init(url: URL) {
         startURL = url
@@ -89,6 +95,10 @@ final class WebViewController: UIViewController {
         webView = web
         // press and hold on the page's buttons with a menu: the phone's own context menu (see HoldZone)
         web.addInteraction(UIContextMenuInteraction(delegate: self))
+
+        nativeTabs.install(in: self, above: web)
+        nativeTabs.onSelect = { [weak self] tab in self?.sendToApp(["type": "tab", "tab": tab]) }
+        workoutModel.send = { [weak self] message in self?.sendToApp(message) }
 
         topSafe = web.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor)
         topFull = web.topAnchor.constraint(equalTo: view.topAnchor)
@@ -179,6 +189,10 @@ final class WebViewController: UIViewController {
             }
             let nowOn = on && found
             self.focused = nowOn
+            if !nowOn {
+                self.nativeTabs.apply(["show": false])
+                self.showWorkout(["show": false])
+            }
             if !nowOn { self.setFullScreen(false) }
             self.webView.scrollView.bounces = !nowOn
             self.sendToApp(["type": "focus", "focus": nowOn, "insets": nowOn ? self.insetsPayload() : NSNull()])
@@ -218,6 +232,10 @@ final class WebViewController: UIViewController {
         view.backgroundColor = color
         errorView?.backgroundColor = color
         pageDark = (body["dark"] as? Bool) ?? (color.luminance < 0.5)
+        if let accent = (body["accent"] as? String).flatMap({ UIColor(hexString: $0) }) {
+            workoutModel.accent = Color(uiColor: accent)
+            nativeTabs.controller.tabBar.tintColor = accent
+        }
         applyInterfaceStyle()
         setNeedsStatusBarAppearanceUpdate()
         styleWheels()
@@ -237,6 +255,87 @@ final class WebViewController: UIViewController {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         applyInterfaceStyle()
+    }
+
+    // MARK: - The app's own screens
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        reportTabBar()
+    }
+
+    /// Tells the page how much of the bottom the tab bar covers, so nothing of the page hides under it.
+    private func reportTabBar() {
+        let height = nativeTabs.coveredHeight(in: view)
+        guard abs(height - sentTabBarHeight) > 0.5 else { return }
+        sentTabBarHeight = height
+        sendToApp(["type": "tabbar", "h": Double(height)])
+    }
+
+    /// The workout list drawn by the app (`{type: "workout", show, state}`): slides up over the page, follows every
+    /// change, slides away when the page shows something else (the step-by-step screen, the summary, Today).
+    private func showWorkout(_ body: [String: Any]) {
+        let show = (body["show"] as? Bool) ?? false
+        if show, let state = body["state"] as? [String: Any] {
+            workoutModel.update(state)
+            guard workoutHost == nil else { return }
+            let host = UIHostingController(rootView: WorkoutScreen(model: workoutModel))
+            host.view.backgroundColor = .systemGroupedBackground
+            addChild(host)
+            host.view.translatesAutoresizingMaskIntoConstraints = false
+            view.insertSubview(host.view, aboveSubview: nativeTabs.container)
+            NSLayoutConstraint.activate([
+                host.view.topAnchor.constraint(equalTo: view.topAnchor),
+                host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+                host.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+                host.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            ])
+            host.didMove(toParent: self)
+            workoutHost = host
+            raiseFloating()
+            setPageSeeThrough(true)
+            view.layoutIfNeeded()
+            host.view.transform = CGAffineTransform(translationX: 0, y: view.bounds.height)
+            UIView.animate(withDuration: 0.42, delay: 0, usingSpringWithDamping: 0.92, initialSpringVelocity: 0, options: [.allowUserInteraction]) {
+                host.view.transform = .identity
+            }
+        } else if let host = workoutHost {
+            workoutHost = nil
+            view.sendSubviewToBack(webView)
+            setPageSeeThrough(false)
+            UIView.animate(withDuration: 0.3, delay: 0, options: [.curveEaseIn]) {
+                host.view.transform = CGAffineTransform(translationX: 0, y: self.view.bounds.height)
+            } completion: { _ in
+                host.willMove(toParent: nil)
+                host.view.removeFromSuperview()
+                host.removeFromParent()
+            }
+        }
+    }
+
+    /// A sheet of the page over the app's workout list: the page (see-through around its sheet) comes to the front
+    /// while the sheet is up.
+    private func setOverlay(_ on: Bool) {
+        if on, let host = workoutHost {
+            view.insertSubview(webView, aboveSubview: host.view)
+        } else {
+            view.sendSubviewToBack(webView)
+        }
+        raiseFloating()
+    }
+
+    /// While the app's own screen is up, Claude's page around the app is see-through too, so the page's sheets
+    /// show over the app's screen.
+    private func setPageSeeThrough(_ on: Bool) {
+        guard focused else { return }
+        let color = on ? "transparent" : pageBackground
+        webView.evaluateJavaScript("window.__gymFocusBg ? window.__gymFocusBg(\(Self.jsString(color))) : false", in: nil, in: .page, completionHandler: nil)
+    }
+
+    /// The wheels' panel and the error screen stay above everything else.
+    private func raiseFloating() {
+        if let pickerPanel { view.bringSubviewToFront(pickerPanel) }
+        if let errorView { view.bringSubviewToFront(errorView) }
     }
 
     // MARK: - The phone's own wheels
@@ -275,8 +374,7 @@ final class WebViewController: UIViewController {
         let columns = raw.compactMap(PickerPanel.Column.init(json:))
         guard !columns.isEmpty else { return }
         let panel = wheels()
-        view.bringSubviewToFront(panel)
-        if let errorView { view.bringSubviewToFront(errorView) }
+        raiseFloating()
         panel.show(id: id, title: body["title"] as? String ?? "", sub: body["sub"] as? String ?? "",
                    done: body["done"] as? String ?? "Готово", columns: columns)
     }
@@ -514,6 +612,7 @@ extension WebViewController: WKScriptMessageHandler {
                 "insets": focused ? insetsPayload() : NSNull(),
                 "picker": true,
                 "holdZones": true,
+                "ui": ["tabs": true, "workout": true],
             ])
         case "ready":
             if appFrame == nil { appFrame = message.frameInfo }
@@ -534,6 +633,14 @@ extension WebViewController: WKScriptMessageHandler {
             if let id = body["id"] as? String { holdMenus[id] = body }
         case "holdZones":
             updateHoldZones(body["zones"] as? [String: Any] ?? [:])
+        case "tabs":
+            nativeTabs.apply(body)
+            view.setNeedsLayout()
+            reportTabBar()
+        case "workout":
+            showWorkout(body)
+        case "overlay":
+            setOverlay((body["on"] as? Bool) ?? false)
         default:
             break
         }
@@ -602,6 +709,8 @@ extension WebViewController: WKNavigationDelegate {
         pickerPanel?.hide(notify: false)
         holdMenus = [:]
         holdZones = [:]
+        nativeTabs.apply(["show": false])
+        showWorkout(["show": false])
         setNeedsStatusBarAppearanceUpdate()
         if AppSettings.focusMode, webView.url?.path.contains("/artifact") == true {
             hidePage(for: 8)
