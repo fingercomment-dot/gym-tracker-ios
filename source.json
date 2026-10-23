@@ -19,6 +19,15 @@
       "screenshotURLs": [],
       "versions": [
         {
+          "version": "1.0.9",
+          "buildVersion": "9",
+          "date": "2026-10-23T12:09:54Z",
+          "localizedDescription": "Системное нижнее меню и экран тренировки на родном списке iOS",
+          "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.9/GymTracker.ipa",
+          "size": 829845,
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.0.8",
           "buildVersion": "8",
           "date": "2026-10-23T11:38:30Z",
@@ -95,11 +104,11 @@
         "entitlements": [],
         "privacy": {}
       },
-      "version": "1.0.8",
-      "versionDate": "2026-10-23T11:38:30Z",
-      "versionDescription": "Меню по удержанию в тёмной теме приложения",
-      "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.8/GymTracker.ipa",
-      "size": 695240
+      "version": "1.0.9",
+      "versionDate": "2026-10-23T12:09:54Z",
+      "versionDescription": "Системное нижнее меню и экран тренировки на родном списке iOS",
+      "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.9/GymTracker.ipa",
+      "size": 829845
     }
   ],
   "news": []
