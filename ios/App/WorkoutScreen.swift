@@ -216,10 +216,9 @@ struct WorkoutScreen: View {
                 }
                 .accessibilityIdentifier("workout.minimize")
             }
-            ToolbarItem(placement: .principal) {
+            // the rest and the workout's time on the right: they stay in sight with the big title too
+            ToolbarItemGroup(placement: .topBarTrailing) {
                 RestTimer(rest: st.rest, restLabel: st.label("rest"), noRestLabel: st.label("noRest"), accent: model.accent)
-            }
-            ToolbarItem(placement: .topBarTrailing) {
                 Text(Date(timeIntervalSince1970: st.startedAt / 1000), style: .timer)
                     .monospacedDigit()
                     .foregroundStyle(.secondary)

@@ -74,8 +74,12 @@ final class GymTrackerUITests: XCTestCase {
             if benchRow.waitForExistence(timeout: 3) {
                 benchRow.tap()
                 sleep(1)
+                app.swipeUp()
+                sleep(1)
                 shot("16-bench-wheels")
-                benchRow.tap()
+                if benchRow.isHittable { benchRow.tap() }
+                app.swipeDown()
+                sleep(1)
             }
         }
 
@@ -98,8 +102,14 @@ final class GymTrackerUITests: XCTestCase {
             finish.tap()
             sleep(1)
             shot("19-finish-ask")
+            // on iOS 26 the question comes out of the button, without its own «cancel»: a tap outside closes it
             let cancel = app.buttons["Продолжить"]
-            if cancel.waitForExistence(timeout: 3) { cancel.tap() }
+            if cancel.waitForExistence(timeout: 2) {
+                cancel.tap()
+            } else {
+                app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12)).tap()
+            }
+            sleep(1)
         }
 
         app.buttons["workout.minimize"].firstMatch.tap()
