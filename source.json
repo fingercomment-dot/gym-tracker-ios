@@ -19,6 +19,15 @@
       "screenshotURLs": [],
       "versions": [
         {
+          "version": "1.0.11",
+          "buildVersion": "11",
+          "date": "2026-10-23T12:30:16Z",
+          "localizedDescription": "Таймер отдыха в верхней панели не обрезается",
+          "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.11/GymTracker.ipa",
+          "size": 830386,
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.0.10",
           "buildVersion": "10",
           "date": "2026-10-23T12:20:38Z",
@@ -98,26 +107,17 @@
           "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.2/GymTracker.ipa",
           "size": 657548,
           "minOSVersion": "17.0"
-        },
-        {
-          "version": "1.0.1",
-          "buildVersion": "1",
-          "date": "2026-10-22T05:12:06Z",
-          "localizedDescription": "iPhone app: Gym Tracker in a native shell with Live Activity",
-          "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.1/GymTracker.ipa",
-          "size": 1045188,
-          "minOSVersion": "17.0"
         }
       ],
       "appPermissions": {
         "entitlements": [],
         "privacy": {}
       },
-      "version": "1.0.10",
-      "versionDate": "2026-10-23T12:20:38Z",
-      "versionDescription": "Таймер отдыха на экране тренировки виден всегда",
-      "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.10/GymTracker.ipa",
-      "size": 830182
+      "version": "1.0.11",
+      "versionDate": "2026-10-23T12:30:16Z",
+      "versionDescription": "Таймер отдыха в верхней панели не обрезается",
+      "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.11/GymTracker.ipa",
+      "size": 830386
     }
   ],
   "news": []
