@@ -218,13 +218,25 @@ final class WebViewController: UIViewController {
         view.backgroundColor = color
         errorView?.backgroundColor = color
         pageDark = (body["dark"] as? Bool) ?? (color.luminance < 0.5)
-        // the phone's own menus, alerts and sheets follow the app's theme, not the phone's
-        view.overrideUserInterfaceStyle = pageDark ? .dark : .light
+        applyInterfaceStyle()
         setNeedsStatusBarAppearanceUpdate()
         styleWheels()
         if focused {
             webView.evaluateJavaScript("window.__gymFocusBg ? window.__gymFocusBg(\(Self.jsString(hex))) : false", in: nil, in: .page, completionHandler: nil)
         }
+    }
+
+    /// The phone's own menus, alerts and sheets follow the app's theme, not the phone's: iOS takes it from the
+    /// window the menu comes up in.
+    private func applyInterfaceStyle() {
+        let style: UIUserInterfaceStyle = pageDark ? .dark : .light
+        view.overrideUserInterfaceStyle = style
+        view.window?.overrideUserInterfaceStyle = style
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        applyInterfaceStyle()
     }
 
     // MARK: - The phone's own wheels
