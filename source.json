@@ -19,6 +19,15 @@
       "screenshotURLs": [],
       "versions": [
         {
+          "version": "1.0.18",
+          "buildVersion": "18",
+          "date": "2026-10-23T14:40:54Z",
+          "localizedDescription": "Порядок упражнений — кнопкой «Изменить», метки тренировок в календаре, даты по-русски",
+          "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.18/GymTracker.ipa",
+          "size": 1184337,
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.0.17",
           "buildVersion": "17",
           "date": "2026-10-23T14:13:21Z",
@@ -98,26 +107,17 @@
           "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.8/GymTracker.ipa",
           "size": 695240,
           "minOSVersion": "17.0"
-        },
-        {
-          "version": "1.0.7",
-          "buildVersion": "7",
-          "date": "2026-10-23T11:29:18Z",
-          "localizedDescription": "Системные меню и окна в теме приложения",
-          "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.7/GymTracker.ipa",
-          "size": 695009,
-          "minOSVersion": "17.0"
         }
       ],
       "appPermissions": {
         "entitlements": [],
         "privacy": {}
       },
-      "version": "1.0.17",
-      "versionDate": "2026-10-23T14:13:21Z",
-      "versionDescription": "Кнопка внизу окна нажимается, надписи на двух кнопках помещаются",
-      "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.17/GymTracker.ipa",
-      "size": 1173228
+      "version": "1.0.18",
+      "versionDate": "2026-10-23T14:40:54Z",
+      "versionDescription": "Порядок упражнений — кнопкой «Изменить», метки тренировок в календаре, даты по-русски",
+      "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.18/GymTracker.ipa",
+      "size": 1184337
     }
   ],
   "news": []
