@@ -19,6 +19,15 @@
       "screenshotURLs": [],
       "versions": [
         {
+          "version": "1.0.4",
+          "buildVersion": "4",
+          "date": "2026-10-23T09:26:26Z",
+          "localizedDescription": "Настоящие барабаны iPhone для подходов, бега и лыж; тёмно-серая плашка на экране блокировки",
+          "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.4/GymTracker.ipa",
+          "size": 679462,
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.0.3",
           "buildVersion": "3",
           "date": "2026-10-22T05:24:19Z",
@@ -50,11 +59,11 @@
         "entitlements": [],
         "privacy": {}
       },
-      "version": "1.0.3",
-      "versionDate": "2026-10-22T05:24:19Z",
-      "versionDescription": "Чище заметки к версиям, страница Claude не ждёт дольше 8 секунд",
-      "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.3/GymTracker.ipa",
-      "size": 657549
+      "version": "1.0.4",
+      "versionDate": "2026-10-23T09:26:26Z",
+      "versionDescription": "Настоящие барабаны iPhone для подходов, бега и лыж; тёмно-серая плашка на экране блокировки",
+      "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.4/GymTracker.ipa",
+      "size": 679462
     }
   ],
   "news": []
