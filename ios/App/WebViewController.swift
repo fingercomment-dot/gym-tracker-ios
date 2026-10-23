@@ -98,6 +98,7 @@ final class WebViewController: UIViewController {
 
         nativeTabs.install(in: self, above: web)
         nativeTabs.onSelect = { [weak self] tab in self?.sendToApp(["type": "tab", "tab": tab]) }
+        nativeTabs.send = { [weak self] message in self?.sendToApp(message) }
         workoutModel.send = { [weak self] message in self?.sendToApp(message) }
 
         topSafe = web.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor)
@@ -191,6 +192,7 @@ final class WebViewController: UIViewController {
             self.focused = nowOn
             if !nowOn {
                 self.nativeTabs.apply(["show": false])
+                self.nativeTabs.reset()
                 self.showWorkout(["show": false])
             }
             if !nowOn { self.setFullScreen(false) }
@@ -234,6 +236,7 @@ final class WebViewController: UIViewController {
         pageDark = (body["dark"] as? Bool) ?? (color.luminance < 0.5)
         if let accent = (body["accent"] as? String).flatMap({ UIColor(hexString: $0) }) {
             workoutModel.accent = Color(uiColor: accent)
+            nativeTabs.accent = Color(uiColor: accent)
             nativeTabs.controller.tabBar.tintColor = accent
         }
         applyInterfaceStyle()
@@ -248,6 +251,7 @@ final class WebViewController: UIViewController {
     /// window the menu comes up in.
     private func applyInterfaceStyle() {
         let style: UIUserInterfaceStyle = pageDark ? .dark : .light
+        overrideUserInterfaceStyle = style
         view.overrideUserInterfaceStyle = style
         view.window?.overrideUserInterfaceStyle = style
     }
@@ -316,8 +320,8 @@ final class WebViewController: UIViewController {
     /// A sheet of the page over the app's workout list: the page (see-through around its sheet) comes to the front
     /// while the sheet is up.
     private func setOverlay(_ on: Bool) {
-        if on, let host = workoutHost {
-            view.insertSubview(webView, aboveSubview: host.view)
+        if on {
+            view.insertSubview(webView, aboveSubview: workoutHost?.view ?? nativeTabs.container)
         } else {
             view.sendSubviewToBack(webView)
         }
@@ -612,7 +616,7 @@ extension WebViewController: WKScriptMessageHandler {
                 "insets": focused ? insetsPayload() : NSNull(),
                 "picker": true,
                 "holdZones": true,
-                "ui": ["tabs": true, "workout": true],
+                "ui": ["tabs": true, "workout": true, "nv": 1, "mini": NativeTabs.hasPlayerBar],
             ])
         case "ready":
             if appFrame == nil { appFrame = message.frameInfo }
@@ -641,6 +645,11 @@ extension WebViewController: WKScriptMessageHandler {
             showWorkout(body)
         case "overlay":
             setOverlay((body["on"] as? Bool) ?? false)
+        case "nv":
+            nativeTabs.setScreen(tab: body["tab"] as? String ?? "", screen: body["screen"] as? [String: Any], root: body["root"] as? [String: Any])
+        case "mini":
+            nativeTabs.showMini(body)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.reportTabBar() }
         default:
             break
         }
@@ -710,6 +719,7 @@ extension WebViewController: WKNavigationDelegate {
         holdMenus = [:]
         holdZones = [:]
         nativeTabs.apply(["show": false])
+        nativeTabs.reset()
         showWorkout(["show": false])
         setNeedsStatusBarAppearanceUpdate()
         if AppSettings.focusMode, webView.url?.path.contains("/artifact") == true {

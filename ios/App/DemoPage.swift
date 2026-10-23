@@ -1,7 +1,8 @@
 import Foundation
 
 /// A small test page for the UI checks in CI (launch argument -GymDemo): it talks to the app exactly like Gym Tracker
-/// does — the tab bar, a workout list the app draws itself (with a sheet of the page over it), the wheels' panel,
+/// does — the tab bar, Today and Settings drawn by the app from what the web app sends (DemoScreens), a workout list
+/// the app draws itself (with a sheet of the page over it), the player bar of a minimised workout, the wheels' panel,
 /// a button with a press-and-hold menu — so the checks can use them in the simulator and take pictures. Nobody sees
 /// it in normal use.
 enum DemoPage {
@@ -46,7 +47,7 @@ enum DemoPage {
     const N = window.webkit.messageHandlers.gymNative;
     const log = document.getElementById('log');
     const TABS = [['today', 'Сегодня', 'dumbbell.fill'], ['calendar', 'Календарь', 'calendar'], ['progress', 'Прогресс', 'chart.bar.fill'], ['more', 'Настройки', 'gearshape.fill']];
-    let tab = 'today';
+    let tab = 'calendar';
     const tabs = show => N.postMessage({ type: 'tabs', show: show, tab: tab, items: TABS.map(t => ({ id: t[0], title: t[1], sf: t[2] })) });
 
     /* a workout like the real one: pull-ups, bench, a superset */
@@ -76,10 +77,60 @@ enum DemoPage {
           more: 'Ещё', endBlock: 'Закончить упражнение', old: 'Разминка, замена, заметки', info: 'Как выполнять', rest: 'Отдых', noRest: 'Без отдыха', quick: 'Отметить по плану', unquick: 'Снять отметку' } };
     }
     const sendWorkout = () => {
-      document.documentElement.classList.toggle('nunder', W.on);
+      if (W.on) W.started = true;
       N.postMessage({ type: 'workout', show: W.on, state: W.on ? state() : null });
       tabs(!W.on);
+      N.postMessage(W.started && !W.on ? { type: 'mini', show: true, t: 'Верх A', letter: 'A', c: '#0A84FF', on: '#FFFFFF', startedAt: W.startedAt,
+        rest: W.rest ? { start: W.rest.start, end: W.rest.end } : null, label: 'Идёт тренировка · 0 из 3', restT: 'Отдых', overT: 'Отдых закончился', open: 'Открыть тренировку' } : { type: 'mini', show: false });
+      nvSend();
     };
+
+    /* Today and Settings, drawn by the app from what the web app sends (captured on test data) */
+    \#(DemoScreens.js)
+    let moreSub = null;
+    const nativeTab = () => !W.on && (tab === 'today' || tab === 'more');
+    function nvSend() {
+      document.documentElement.classList.toggle('nunder', W.on || nativeTab());
+      if (tab === 'today') N.postMessage({ type: 'nv', tab: 'today', screen: NVS.today, root: null });
+      if (tab === 'more') N.postMessage({ type: 'nv', tab: 'more', screen: moreSub ? NVS[moreSub] : NVS.more, root: moreSub ? NVS.more : null });
+    }
+    /* the thing whose function the app sent back, and what holds it */
+    function findFn(node, fn, parent) {
+      if (!node || typeof node !== 'object') return null;
+      if (Array.isArray(node)) { for (const x of node) { const r = findFn(x, fn, parent); if (r) return r; } return null; }
+      for (const k in node) {
+        if (node[k] === fn) return { node: node, key: k, parent: parent };
+        if (node[k] && typeof node[k] === 'object') { const r = findFn(node[k], fn, Array.isArray(node[k]) ? node : node[k]); if (r) return r; }
+      }
+      return null;
+    }
+    function nvAct(d) {
+      const f = String(d.fn || '');
+      log.textContent = 'nva ' + f + (d.v !== undefined ? ' = ' + JSON.stringify(d.v) : '');
+      if (f.indexOf('q-weight') >= 0) { openSheet(); return; }
+      if (f.indexOf('Начать тренировку') >= 0) { W.on = true; sendWorkout(); return; }
+      if (f.indexOf('/Оформление:fn') >= 0) { moreSub = 'look'; nvSend(); return; }
+      if (f.indexOf('/Программа:fn') >= 0) { moreSub = 'program'; nvSend(); return; }
+      if (/:back$/.test(f)) { moreSub = null; nvSend(); return; }
+      const scr = tab === 'today' ? NVS.today : moreSub ? NVS[moreSub] : NVS.more;
+      const hit = findFn(scr, f, null); if (!hit) return;
+      const n = hit.node;
+      if (hit.key === 'move') {
+        const keyed = n.rows.filter(r => r.key), rest = n.rows.filter(r => !r.key);
+        n.rows = rest.concat(d.v.map(k => keyed.find(r => r.key === k)).filter(Boolean));
+      } else if (hit.key === 'fn' && !n.k && 'open' in n) n.open = !!d.v;
+      else if (hit.key === 'fn' && n.k === 'toggle') n.on = !!d.v;
+      else if (hit.key === 'fn' && (n.k === 'swatches' || n.k === 'seg')) n.sel = String(d.v);
+      else if (hit.key === 'fn' && n.k === 'weeks') n.page = +d.v;
+      else if (hit.key === 'fn' && !n.k && n.t !== undefined) {
+        /* a pick in a button's menu: it becomes what the button does */
+        const btn = findFn(scr, n.fn.replace(/:menu:items\.\d+:fn$/, ':fn'), null);
+        const items = (btn && btn.node.menu && btn.node.menu.items) || [];
+        items.forEach(it => { it.on = it === n; });
+        if (btn) { btn.node.t = n.t; btn.node.sf = n.sf; }
+      } else return;
+      nvSend();
+    }
     function act(d) {
       const b = W.blocks[d.b], it = b && b.items[d.i];
       if (d.a === 'log' && it) { it.done = Math.max(it.done, d.k + 1); W.rest = { kind: 'rest', start: Date.now(), end: Date.now() + 120000 }; N.postMessage({ type: 'haptic', style: 'medium' }); }
@@ -91,6 +142,7 @@ enum DemoPage {
       if (d.a === 'quick' && b) b.items.forEach(x => { x.done = x.sets.length; });
       if (d.a === 'info') openSheet();
       if (d.a === 'min' || d.a === 'finish') W.on = false;
+      if (d.a === 'finish') W.started = false;
       sendWorkout();
     }
     function openSheet() { document.getElementById('back').style.display = 'block'; document.getElementById('sheet').style.display = 'block'; N.postMessage({ type: 'overlay', on: true }); }
@@ -100,14 +152,17 @@ enum DemoPage {
     document.getElementById('go').onclick = () => { W.on = true; sendWorkout(); };
 
     window.__gymNative = d => {
-      if (d.type === 'tab') { tab = d.tab; document.getElementById('tabtitle').textContent = TABS.find(t => t[0] === tab)[1]; tabs(true); }
+      if (d.type === 'tab') { tab = d.tab; document.getElementById('tabtitle').textContent = TABS.find(t => t[0] === tab)[1]; tabs(true); nvSend(); }
       if (d.type === 'wact') act(d);
+      if (d.type === 'nva') { nvAct(d); return true; }
+      if (d.type === 'mini' && d.a === 'open') { W.on = true; sendWorkout(); }
       log.textContent = JSON.stringify(d);
       return true;
     };
     N.postMessage({ type: 'hello', v: 'demo' });
     N.postMessage({ type: 'look', bg: '#1E1E1E', accent: '#8B6CEF', dark: true, sheet: '#262626', label: '#DADADA', label2: '#A3A3A3', tint: '#A88BFA' });
     tabs(true);
+    document.getElementById('tabtitle').textContent = 'Календарь';
     const range = (a, b, s) => { const r = []; for (let v = a; v <= b + 1e-9; v += s || 1) r.push(+v.toFixed(2)); return r; };
     const reps = range(0, 30);
     const weights = id => N.postMessage({ type: 'picker', id: id, title: 'Жим штанги лёжа', sub: 'Подход 1', done: 'Готово',
@@ -126,7 +181,7 @@ enum DemoPage {
       { id: '1', title: 'Отправить Claude', sub: 'копирует отчёт о последней тренировке для чата', sf: 'doc.on.doc', on: false },
       { id: '2', title: 'Как прошло?', sub: 'заметка к последней тренировке', sf: 'square.and.pencil', on: false },
       { id: '3', title: 'Восстановление', sub: 'какие мышцы работали и когда их снова грузить', sf: 'battery.75percent', on: false }] });
-    const zones = () => { const r = hold.getBoundingClientRect(); N.postMessage({ type: 'holdZones', zones: { hero: W.on ? null : { x: r.left, y: r.top, w: r.width, h: r.height, r: 25 } } }); };
+    const zones = () => { const r = hold.getBoundingClientRect(); N.postMessage({ type: 'holdZones', zones: { hero: W.on || nativeTab() ? null : { x: r.left, y: r.top, w: r.width, h: r.height, r: 25 } } }); };
     addEventListener('scroll', () => requestAnimationFrame(zones), { passive: true });
     addEventListener('resize', zones);
     setTimeout(zones, 300); setTimeout(zones, 1500); setInterval(zones, 1000);

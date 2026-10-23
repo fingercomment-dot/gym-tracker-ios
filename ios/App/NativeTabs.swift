@@ -1,26 +1,48 @@
+import SwiftUI
 import UIKit
 
 /// The phone's own tab bar at the bottom, over the page (iOS 26: the floating glass bar). The page says which tabs
 /// there are and which one is open (`{type: "tabs", show, tab, items: [{id, title, sf}]}`); a tap on a tab goes back
-/// to the page (`{type: "tab", tab}`), which switches to it. The tabs' own screens are still the page underneath, so
-/// everything above the bar lets touches through to it.
+/// to the page (`{type: "tab", tab}`), which switches to it.
+///
+/// A tab is either the page itself (its slot stays empty and see-through, touches go through to the page) or a
+/// screen the app draws from the page's description (`{type: "nv", tab, screen, root}`, see NV.swift). With iOS 26
+/// a minimised workout sits over the bar as the player bar (`{type: "mini"}`).
 final class NativeTabs: NSObject, UITabBarControllerDelegate {
     let controller = UITabBarController()
-    /// Holds the tab bar controller's view: only touches on the bar itself stay here.
+    /// Holds the tab bar controller's view: touches on the page's own tabs go through it.
     let container = PassThroughView()
     /// A tab the person picked.
     var onSelect: ((String) -> Void)?
+    /// Taps on the app's own screens and on the player bar, for the page.
+    var send: (([String: Any]) -> Void)? {
+        didSet { models.values.forEach { $0.send = send }; mini.send = send }
+    }
+    var accent: Color = .accentColor {
+        didSet { models.values.forEach { $0.accent = accent }; mini.accent = accent }
+    }
 
     private var ids: [String] = []
+    private var slots: [String: TabSlot] = [:]
+    private var models: [String: NVTabModel] = [:]
+    let mini = MiniModel()
+    private var miniView: UIView?
 
     override init() {
         super.init()
         controller.delegate = self
         container.backgroundColor = .clear
-        container.passes = { [weak self] hit in
-            guard let bar = self?.controller.tabBar else { return true }
-            return !hit.isDescendant(of: bar)
-        }
+        container.passes = { [weak self] hit, point in self?.passesThrough(hit, at: point) ?? true }
+    }
+
+    /// Touches stay with the bar, the player bar over it and the app's own screens; everything else (an empty,
+    /// see-through tab and the containers around it) goes through to the page.
+    private func passesThrough(_ hit: UIView, at point: CGPoint) -> Bool {
+        if hit.isDescendant(of: controller.tabBar) { return false }
+        if let miniView, miniView.window != nil,
+           miniView.convert(miniView.bounds, to: container).insetBy(dx: -8, dy: -8).contains(point) { return false }
+        for slot in slots.values where slot.hasScreen && hit.isDescendant(of: slot.view) { return false }
+        return true
     }
 
     /// Puts the bar into the screen (above `below`'s content), once.
@@ -48,6 +70,15 @@ final class NativeTabs: NSObject, UITabBarControllerDelegate {
         container.isHidden = true
     }
 
+    private func model(_ tab: String) -> NVTabModel {
+        if let m = models[tab] { return m }
+        let m = NVTabModel(tab: tab)
+        m.send = send
+        m.accent = accent
+        models[tab] = m
+        return m
+    }
+
     /// What the page sent: the tabs, which one is open, whether the bar shows at all.
     func apply(_ body: [String: Any]) {
         let items = (body["items"] as? [[String: Any]]) ?? []
@@ -55,10 +86,12 @@ final class NativeTabs: NSObject, UITabBarControllerDelegate {
         if !items.isEmpty, newIds != ids || controller.viewControllers?.count != items.count {
             ids = newIds
             controller.viewControllers = items.map { item in
-                let tab = TabPlaceholder()
+                let id = item["id"] as? String ?? ""
+                let slot = slots[id] ?? TabSlot(model: model(id))
+                slots[id] = slot
                 let image = (item["sf"] as? String).flatMap { UIImage(systemName: $0) }
-                tab.tabBarItem = UITabBarItem(title: item["title"] as? String, image: image, selectedImage: nil)
-                return tab
+                slot.tabBarItem = UITabBarItem(title: item["title"] as? String, image: image, selectedImage: nil)
+                return slot
             }
         } else if !items.isEmpty {
             for (vc, item) in zip(controller.viewControllers ?? [], items) {
@@ -71,11 +104,57 @@ final class NativeTabs: NSObject, UITabBarControllerDelegate {
         container.isHidden = !((body["show"] as? Bool) ?? false) || ids.isEmpty
     }
 
-    /// How much of the bottom of the screen the bar covers, home indicator included (0 when it's hidden).
+    /// The page's description of a tab's screen (nil: the page draws that tab itself again).
+    func setScreen(tab: String, screen: [String: Any]?, root: [String: Any]?) {
+        let m = model(tab)
+        m.update(screen: screen, root: root)
+        slots[tab]?.showScreen(m.isShown)
+    }
+
+    /// A new page or Claude's page around the app: the app's own screens go away.
+    func reset() {
+        for (tab, m) in models {
+            m.update(screen: nil, root: nil)
+            slots[tab]?.showScreen(false)
+        }
+        showMini(["show": false])
+    }
+
+    /// How much of the bottom of the screen the bar covers (with the player bar and the home indicator; 0 when hidden).
     func coveredHeight(in view: UIView) -> CGFloat {
         guard !container.isHidden, controller.tabBar.window != nil else { return 0 }
-        let frame = controller.tabBar.convert(controller.tabBar.bounds, to: view)
-        return max(0, view.bounds.maxY - frame.minY)
+        var top = controller.tabBar.convert(controller.tabBar.bounds, to: view).minY
+        if let miniView, miniView.window != nil, !miniView.isHidden, miniView.bounds.height > 0 {
+            top = min(top, miniView.convert(miniView.bounds, to: view).minY - 8)
+        }
+        return max(0, view.bounds.maxY - top)
+    }
+
+    // MARK: - The minimised workout over the bar (iOS 26)
+
+    static var hasPlayerBar: Bool {
+        if #available(iOS 26.0, *) { return true }
+        return false
+    }
+
+    func showMini(_ body: [String: Any]) {
+        guard #available(iOS 26.0, *) else { return }
+        let show = (body["show"] as? Bool) ?? false
+        if show {
+            mini.update(body)
+            if controller.bottomAccessory == nil {
+                let content = UIHostingConfiguration { MiniBarView(model: self.mini) }
+                    .margins(.all, 0)
+                    .makeContentView()
+                content.backgroundColor = .clear
+                content.accessibilityIdentifier = "mini.bar"
+                miniView = content
+                controller.setBottomAccessory(UITabAccessory(contentView: content), animated: true)
+            }
+        } else if controller.bottomAccessory != nil {
+            controller.setBottomAccessory(nil, animated: true)
+            miniView = nil
+        }
     }
 
     func tabBarController(_ tabBarController: UITabBarController, didSelect viewController: UIViewController) {
@@ -84,20 +163,50 @@ final class NativeTabs: NSObject, UITabBarControllerDelegate {
     }
 }
 
-/// A tab's own screen while it is still the page: empty and see-through.
-private final class TabPlaceholder: UIViewController {
+/// A tab's own screen: empty and see-through while the page draws it, or the app's screen drawn from the page.
+final class TabSlot: UIViewController {
+    let model: NVTabModel
+    private var host: UIHostingController<NVTabRoot>?
+    var hasScreen: Bool { host != nil }
+
+    init(model: NVTabModel) {
+        self.model = model
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
     override func loadView() {
         view = UIView()
         view.backgroundColor = .clear
+    }
+
+    func showScreen(_ on: Bool) {
+        if on, host == nil {
+            loadViewIfNeeded()
+            let h = UIHostingController(rootView: NVTabRoot(model: model))
+            h.view.backgroundColor = .systemGroupedBackground
+            addChild(h)
+            h.view.frame = view.bounds
+            h.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            view.addSubview(h.view)
+            h.didMove(toParent: self)
+            host = h
+        } else if !on, let h = host {
+            h.willMove(toParent: nil)
+            h.view.removeFromSuperview()
+            h.removeFromParent()
+            host = nil
+        }
     }
 }
 
 /// A view that lets touches through to whatever is under it, except where `passes` says no.
 final class PassThroughView: UIView {
-    var passes: (UIView) -> Bool = { _ in true }
+    var passes: (UIView, CGPoint) -> Bool = { _, _ in true }
 
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         guard let hit = super.hitTest(point, with: event) else { return nil }
-        return passes(hit) ? nil : hit
+        return passes(hit, point) ? nil : hit
     }
 }
