@@ -107,9 +107,10 @@ final class GymTrackerUITests: XCTestCase {
             if cancel.waitForExistence(timeout: 2) {
                 cancel.tap()
             } else {
-                app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12)).tap()
+                app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.04)).tap()
             }
-            sleep(1)
+            sleep(2)
+            shot("19b-finish-closed")
         }
 
         // iOS 26 glass bar buttons give the test no point to tap: tap where the button is (top left)

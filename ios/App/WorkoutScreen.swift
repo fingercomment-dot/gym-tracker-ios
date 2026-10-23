@@ -202,6 +202,17 @@ struct WorkoutScreen: View {
                         .frame(maxWidth: .infinity)
                 }
                 .accessibilityIdentifier("workout.finish")
+                // the question comes out of the button that asked it
+                .confirmationDialog(st.finish.ask?.title ?? "", isPresented: $asking, titleVisibility: .visible) {
+                    if let ask = st.finish.ask {
+                        Button(ask.ok, role: ask.danger ? .destructive : nil) {
+                            model.act("finish", ["kind": ask.kind])
+                        }
+                        Button(ask.cancel, role: .cancel) {}
+                    }
+                } message: {
+                    if let ask = st.finish.ask { Text(ask.text) }
+                }
             }
         }
         .listStyle(.insetGrouped)
@@ -223,16 +234,6 @@ struct WorkoutScreen: View {
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
             }
-        }
-        .confirmationDialog(st.finish.ask?.title ?? "", isPresented: $asking, titleVisibility: .visible) {
-            if let ask = st.finish.ask {
-                Button(ask.ok, role: ask.danger ? .destructive : nil) {
-                    model.act("finish", ["kind": ask.kind])
-                }
-                Button(ask.cancel, role: .cancel) {}
-            }
-        } message: {
-            if let ask = st.finish.ask { Text(ask.text) }
         }
     }
 }
