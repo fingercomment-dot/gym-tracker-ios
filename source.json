@@ -19,6 +19,15 @@
       "screenshotURLs": [],
       "versions": [
         {
+          "version": "1.0.6",
+          "buildVersion": "6",
+          "date": "2026-10-23T11:19:27Z",
+          "localizedDescription": "Исправлен вылет при открытии барабанов; настоящее контекстное меню iOS по удержанию",
+          "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.6/GymTracker.ipa",
+          "size": 694978,
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.0.5",
           "buildVersion": "5",
           "date": "2026-10-23T10:24:38Z",
@@ -68,11 +77,11 @@
         "entitlements": [],
         "privacy": {}
       },
-      "version": "1.0.5",
-      "versionDate": "2026-10-23T10:24:38Z",
-      "versionDescription": "Барабаны раздвинуты к краям, «кг» и «раз» больше не листаются; системное меню по удержанию",
-      "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.5/GymTracker.ipa",
-      "size": 686968
+      "version": "1.0.6",
+      "versionDate": "2026-10-23T11:19:27Z",
+      "versionDescription": "Исправлен вылет при открытии барабанов; настоящее контекстное меню iOS по удержанию",
+      "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.6/GymTracker.ipa",
+      "size": 694978
     }
   ],
   "news": []
