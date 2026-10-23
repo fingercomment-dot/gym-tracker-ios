@@ -129,8 +129,16 @@ struct LockScreenView: View {
             }
         }
         .padding(16)
+        // dark grey instead of black, so it doesn't jump out of the Lock Screen; the text stays light whatever the
+        // phone's appearance is
+        .foregroundStyle(.white)
+        .environment(\.colorScheme, .dark)
+        .activityBackgroundTint(Self.background)
         .activitySystemActionForegroundColor(accent)
     }
+
+    /// #2C2C2E — the dark grey of iOS cards in dark mode.
+    static let background = Color(red: 44 / 255, green: 44 / 255, blue: 46 / 255)
 }
 
 /// The big number: the rest timer, the set («2/4»), or how many exercises are done.

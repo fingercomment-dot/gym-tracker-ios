@@ -29,6 +29,10 @@ final class WebViewController: UIViewController {
     private var revealTask: Task<Void, Never>?
     private var pageDark = true
     private var pageBackground = AppSettings.pageBackground ?? "#000000"
+    /// The app's colours for the wheels' panel: sheet, label, label-2, tint.
+    private var pageColors: [String: String] = [:]
+    /// The phone's own wheels, docked at the bottom when the page asks for them.
+    private var pickerPanel: PickerPanel?
 
     init(url: URL) {
         startURL = url
@@ -186,6 +190,9 @@ final class WebViewController: UIViewController {
     }
 
     private func applyLook(_ body: [String: Any]) {
+        for key in ["sheet", "label", "label2", "tint"] {
+            if let value = body[key] as? String { pageColors[key] = value }
+        }
         guard let hex = body["bg"] as? String, let color = UIColor(hexString: hex) else { return }
         pageBackground = hex
         AppSettings.pageBackground = hex
@@ -193,9 +200,52 @@ final class WebViewController: UIViewController {
         errorView?.backgroundColor = color
         pageDark = (body["dark"] as? Bool) ?? (color.luminance < 0.5)
         setNeedsStatusBarAppearanceUpdate()
+        styleWheels()
         if focused {
             webView.evaluateJavaScript("window.__gymFocusBg ? window.__gymFocusBg(\(Self.jsString(hex))) : false", in: nil, in: .page, completionHandler: nil)
         }
+    }
+
+    // MARK: - The phone's own wheels
+
+    private func wheels() -> PickerPanel {
+        if let panel = pickerPanel { return panel }
+        let panel = PickerPanel()
+        panel.translatesAutoresizingMaskIntoConstraints = false
+        panel.isHidden = true
+        view.addSubview(panel)
+        NSLayoutConstraint.activate([
+            panel.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            panel.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            panel.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ])
+        panel.onEvent = { [weak self] message in self?.sendToApp(message) }
+        pickerPanel = panel
+        styleWheels()
+        return panel
+    }
+
+    private func styleWheels() {
+        guard let panel = pickerPanel else { return }
+        let color = { (key: String) in self.pageColors[key].flatMap { UIColor(hexString: $0) } }
+        panel.style(sheet: color("sheet"), label: color("label"), secondary: color("label2"), tint: color("tint"), dark: pageDark)
+    }
+
+    /// `{type: "picker", id, title, sub, done, cols}` brings the wheels up (or changes what they show);
+    /// `{type: "picker", close: true}` puts them away.
+    private func handlePicker(_ body: [String: Any]) {
+        if (body["close"] as? Bool) == true {
+            pickerPanel?.hide(notify: false)
+            return
+        }
+        guard let id = body["id"] as? String, let raw = body["cols"] as? [[String: Any]] else { return }
+        let columns = raw.compactMap(PickerPanel.Column.init(json:))
+        guard !columns.isEmpty else { return }
+        let panel = wheels()
+        view.bringSubviewToFront(panel)
+        if let errorView { view.bringSubviewToFront(errorView) }
+        panel.show(id: id, title: body["title"] as? String ?? "", sub: body["sub"] as? String ?? "",
+                   done: body["done"] as? String ?? "Готово", columns: columns)
     }
 
     // MARK: - The app's own menu (Settings in the app, or shake the phone)
@@ -248,6 +298,7 @@ final class WebViewController: UIViewController {
 
     private func showError(_ text: String) {
         hideError()
+        pickerPanel?.hide(notify: true)
         let overlay = UIView()
         overlay.backgroundColor = view.backgroundColor
         overlay.overrideUserInterfaceStyle = pageDark ? .dark : .light
@@ -367,6 +418,7 @@ extension WebViewController: WKScriptMessageHandler {
                 "live": LiveActivityManager.shared.isEnabled,
                 "focus": focused,
                 "insets": focused ? insetsPayload() : NSNull(),
+                "picker": true,
             ])
         case "ready":
             if appFrame == nil { appFrame = message.frameInfo }
@@ -381,6 +433,8 @@ extension WebViewController: WKScriptMessageHandler {
             UIApplication.shared.isIdleTimerDisabled = (body["on"] as? Bool) ?? false
         case "menu":
             showAppMenu()
+        case "picker":
+            handlePicker(body)
         default:
             break
         }
@@ -441,6 +495,7 @@ extension WebViewController: WKNavigationDelegate {
         }
         appFrame = nil
         appIsWholePage = false
+        pickerPanel?.hide(notify: false)
         setNeedsStatusBarAppearanceUpdate()
         if AppSettings.focusMode, webView.url?.path.contains("/artifact") == true {
             hidePage(for: 8)
