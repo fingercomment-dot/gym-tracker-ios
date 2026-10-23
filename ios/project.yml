@@ -77,6 +77,21 @@ targets:
         SKIP_INSTALL: "YES"
         APPLICATION_EXTENSION_API_ONLY: "YES"
 
+  # UI checks in the simulator: the app on its test page, pictures of the wheels and the press-and-hold menu
+  GymTrackerUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.fingercomment-dot.gymtracker.uitests
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_TARGET_NAME: GymTracker
+        TARGETED_DEVICE_FAMILY: "1"
+    dependencies:
+      - target: GymTracker
+
 schemes:
   GymTracker:
     build:
@@ -85,5 +100,9 @@ schemes:
         GymWidgets: all
     run:
       config: Debug
+    test:
+      config: Debug
+      targets:
+        - GymTrackerUITests
     archive:
       config: Release

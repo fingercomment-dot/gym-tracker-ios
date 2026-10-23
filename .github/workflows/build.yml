@@ -118,3 +118,111 @@ jobs:
             git pull --rebase origin main && git push origin HEAD:main && break
             sleep 5
           done
+
+  # The app in the iPhone simulator on its test page: opens the wheels and the press-and-hold menu, takes pictures
+  # and puts them (with the log and any crash report) on the "ci-shots" release, so they can be looked at before
+  # anyone installs the build.
+  uitest:
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_INSTALL_CLEANUP: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pick the newest Xcode
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_*.app | grep -viE 'beta|release_candidate|_rc' | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+          xcodebuild -version
+
+      - name: Make the Xcode project
+        working-directory: ios
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Pick an iPhone simulator
+        id: sim
+        run: |
+          xcrun simctl list devices available --json > sims.json
+          UDID=$(python3 - <<'PY'
+          import json, re
+          d = json.load(open("sims.json"))["devices"]
+          best = None
+          for rt, devs in d.items():
+              if ".iOS-" not in rt:
+                  continue
+              ver = tuple(int(x) for x in re.findall(r"\d+", rt.split(".iOS-")[-1]))
+              for dv in devs:
+                  if not dv["name"].startswith("iPhone"):
+                      continue
+                  pref = 1 if re.match(r"iPhone 1[6-9]( |$)", dv["name"]) else 0
+                  key = (ver, pref, dv["name"])
+                  if best is None or key > best[0]:
+                      best = (key, dv["udid"])
+          print(best[1] if best else "")
+          PY
+          )
+          echo "Simulator: $UDID"
+          grep -B2 -A2 "$UDID" sims.json | head -8 || true
+          test -n "$UDID"
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+      - name: Run the UI checks
+        working-directory: ios
+        run: |
+          set +e
+          xcodebuild test \
+            -project GymTracker.xcodeproj \
+            -scheme GymTracker \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath build-test \
+            -resultBundlePath ../ui.xcresult \
+            CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=YES \
+            > ../uitest.log 2>&1
+          STATUS=$?
+          grep -E "error:|failed|crash|Crash|Test Case|\*\* TEST" ../uitest.log | tail -60
+          echo "xcodebuild exit: $STATUS"
+          echo "$STATUS" > ../uitest.status
+
+      - name: Collect the pictures
+        if: always()
+        run: |
+          mkdir -p shots
+          xcrun xcresulttool export attachments --path ui.xcresult --output-path shots-raw > /dev/null 2>&1 || true
+          python3 - <<'PY'
+          import json, os, shutil
+          raw = "shots-raw"
+          man = os.path.join(raw, "manifest.json")
+          n = 0
+          if os.path.exists(man):
+              for test in json.load(open(man)):
+                  for a in test.get("attachments", []):
+                      src = os.path.join(raw, a.get("exportedFileName", ""))
+                      name = (a.get("suggestedHumanReadableName") or a.get("exportedFileName") or "shot").split("_0_")[0]
+                      if os.path.isfile(src):
+                          ext = os.path.splitext(src)[1] or ".png"
+                          shutil.copy(src, os.path.join("shots", name.replace("/", "-") + ext))
+                          n += 1
+          print("pictures:", n)
+          PY
+          xcrun xcresulttool get test-results tests --path ui.xcresult > shots/test-results.json 2>/dev/null || true
+          cp uitest.log shots/uitest.log 2>/dev/null || true
+          find ~/Library/Logs/DiagnosticReports -name "GymTracker*" -mmin -60 -exec cp {} shots/ \; 2>/dev/null || true
+          ls -la shots
+
+      - name: Publish the pictures
+        if: always() && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete ci-shots --yes --cleanup-tag || true
+          gh release create ci-shots shots/* --prerelease --target "$GITHUB_SHA" \
+            --title "CI: снимки из симулятора" --notes "Снимки нативных частей приложения из симулятора iPhone для коммита $GITHUB_SHA. Не для установки."
+
+      - name: Fail when the checks failed
+        if: always()
+        run: |
+          test "$(cat uitest.status 2>/dev/null)" = "0"

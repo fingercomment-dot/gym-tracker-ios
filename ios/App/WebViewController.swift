@@ -33,12 +33,23 @@ final class WebViewController: UIViewController {
     private var pageColors: [String: String] = [:]
     /// The phone's own wheels, docked at the bottom when the page asks for them.
     private var pickerPanel: PickerPanel?
-    /// Press-and-hold menus the page has described, by id: its links to gymtracker://hold/<id> get them.
+    /// Press-and-hold menus the page has described, by id, and where their buttons are on screen right now.
     private var holdMenus: [String: [String: Any]] = [:]
+    private var holdZones: [String: HoldZone] = [:]
+    /// The button whose menu is up (or coming up): its place when the press began.
+    private var activeHold: (id: String, zone: HoldZone)?
+    /// A test page instead of the app (UI checks in CI: launch argument -GymDemo).
+    private var demoHTML: String?
 
     init(url: URL) {
         startURL = url
         super.init(nibName: nil, bundle: nil)
+    }
+
+    /// The app's native parts on a small test page, for the UI checks in CI.
+    convenience init(demoHTML: String) {
+        self.init(url: URL(string: "https://gym-demo.local/")!)
+        self.demoHTML = demoHTML
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
@@ -67,9 +78,7 @@ final class WebViewController: UIViewController {
         web.navigationDelegate = self
         web.uiDelegate = self
         web.allowsBackForwardNavigationGestures = false
-        // a press and hold on a link asks us for a menu: the page's own buttons with a menu get the phone's
-        // context menu, every other link gets nothing (as before)
-        web.allowsLinkPreview = true
+        web.allowsLinkPreview = false
         web.isOpaque = false
         web.backgroundColor = .clear
         web.scrollView.backgroundColor = .clear
@@ -78,6 +87,8 @@ final class WebViewController: UIViewController {
         web.alpha = 0
         view.addSubview(web)
         webView = web
+        // press and hold on the page's buttons with a menu: the phone's own context menu (see HoldZone)
+        web.addInteraction(UIContextMenuInteraction(delegate: self))
 
         topSafe = web.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor)
         topFull = web.topAnchor.constraint(equalTo: view.topAnchor)
@@ -100,7 +111,11 @@ final class WebViewController: UIViewController {
         ])
         spinner.startAnimating()
 
-        web.load(URLRequest(url: startURL))
+        if let demoHTML {
+            web.loadHTMLString(demoHTML, baseURL: startURL)
+        } else {
+            web.load(URLRequest(url: startURL))
+        }
     }
 
     // MARK: - Showing the page
@@ -256,10 +271,9 @@ final class WebViewController: UIViewController {
 
     static let holdScheme = "gymtracker"
 
-    /// The menu the page described for gymtracker://hold/<id>, as the phone's own menu; a pick goes back to the page.
-    fileprivate func holdMenu(for url: URL?) -> UIMenu? {
-        guard let url, url.scheme == Self.holdScheme, url.host == "hold",
-              let id = url.pathComponents.dropFirst().first, let def = holdMenus[id] else { return nil }
+    /// The menu the page described for this button, as the phone's own menu; a pick goes back to the page.
+    fileprivate func holdMenu(id: String) -> UIMenu? {
+        guard let def = holdMenus[id] else { return nil }
         let items = def["items"] as? [[String: Any]] ?? []
         let actions: [UIMenuElement] = items.compactMap { (item: [String: Any]) -> UIMenuElement? in
             guard let key = item["id"] as? String else { return nil }
@@ -273,6 +287,45 @@ final class WebViewController: UIViewController {
         }
         guard !actions.isEmpty else { return nil }
         return UIMenu(title: def["title"] as? String ?? "", children: actions)
+    }
+
+    /// Where the page's buttons with a menu are, in the page's own coordinates (only the app on screen — then the
+    /// page's coordinates are the screen's). `null` means the button is gone or covered.
+    private func updateHoldZones(_ zones: [String: Any]) {
+        for (id, value) in zones {
+            guard let z = value as? [String: Any],
+                  let x = (z["x"] as? NSNumber)?.doubleValue, let y = (z["y"] as? NSNumber)?.doubleValue,
+                  let w = (z["w"] as? NSNumber)?.doubleValue, let h = (z["h"] as? NSNumber)?.doubleValue,
+                  w > 0, h > 0 else {
+                holdZones.removeValue(forKey: id)
+                continue
+            }
+            let radius = (z["r"] as? NSNumber)?.doubleValue ?? 12
+            holdZones[id] = HoldZone(rect: CGRect(x: x, y: y, width: w, height: h), radius: CGFloat(radius))
+        }
+    }
+
+    fileprivate func holdZone(at point: CGPoint) -> (id: String, zone: HoldZone)? {
+        guard focused || appIsWholePage, presentedViewController == nil else { return nil }
+        for (id, zone) in holdZones where zone.rect.contains(point) && holdMenus[id] != nil {
+            return (id, zone)
+        }
+        return nil
+    }
+
+    /// The button itself, lifted out of the page: a picture of it in its own shape (the pill of the button), so it
+    /// rises and the screen blurs around it exactly like any button with a menu in iOS.
+    fileprivate func holdPreview() -> UITargetedPreview? {
+        guard let hold = activeHold else { return nil }
+        let zone = hold.zone
+        let rect = zone.rect
+        let picture = webView.resizableSnapshotView(from: rect, afterScreenUpdates: false, withCapInsets: .zero) ?? UIView()
+        picture.frame = CGRect(origin: .zero, size: rect.size)
+        let parameters = UIPreviewParameters()
+        parameters.visiblePath = UIBezierPath(roundedRect: picture.bounds, cornerRadius: min(zone.radius, rect.height / 2))
+        parameters.backgroundColor = .clear
+        let target = UIPreviewTarget(container: webView, center: CGPoint(x: rect.midX, y: rect.midY))
+        return UITargetedPreview(view: picture, parameters: parameters, target: target)
     }
 
     // MARK: - The app's own menu (Settings in the app, or shake the phone)
@@ -446,7 +499,7 @@ extension WebViewController: WKScriptMessageHandler {
                 "focus": focused,
                 "insets": focused ? insetsPayload() : NSNull(),
                 "picker": true,
-                "hold": true,
+                "holdZones": true,
             ])
         case "ready":
             if appFrame == nil { appFrame = message.frameInfo }
@@ -465,6 +518,8 @@ extension WebViewController: WKScriptMessageHandler {
             handlePicker(body)
         case "holdMenu":
             if let id = body["id"] as? String { holdMenus[id] = body }
+        case "holdZones":
+            updateHoldZones(body["zones"] as? [String: Any] ?? [:])
         default:
             break
         }
@@ -532,6 +587,7 @@ extension WebViewController: WKNavigationDelegate {
         appIsWholePage = false
         pickerPanel?.hide(notify: false)
         holdMenus = [:]
+        holdZones = [:]
         setNeedsStatusBarAppearanceUpdate()
         if AppSettings.focusMode, webView.url?.path.contains("/artifact") == true {
             hidePage(for: 8)
@@ -578,20 +634,6 @@ extension WebViewController: WKUIDelegate {
         return popupWeb
     }
 
-    /// Press and hold on a link: the phone's own menu for the page's buttons with a menu (the button lifts, the
-    /// screen blurs, a finger slides to a pick); nothing for any other link.
-    func webView(_ webView: WKWebView, contextMenuConfigurationForElement elementInfo: WKContextMenuElementInfo, completionHandler: @escaping (UIContextMenuConfiguration?) -> Void) {
-        guard let menu = holdMenu(for: elementInfo.linkURL) else {
-            completionHandler(nil)
-            return
-        }
-        completionHandler(UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in menu })
-    }
-
-    /// A tap on the lifted button just closes the menu (there is no page behind the link).
-    func webView(_ webView: WKWebView, contextMenuForElement elementInfo: WKContextMenuElementInfo, willCommitWithAnimator animator: UIContextMenuInteractionCommitAnimating) {
-    }
-
     func webViewDidClose(_ webView: WKWebView) {
         if let popup, popup.webView === webView {
             popup.dismiss(animated: true)
@@ -619,5 +661,40 @@ extension WebViewController: WKUIDelegate {
             completionHandler(alert?.textFields?.first?.text)
         })
         present(dialog: alert) { completionHandler(nil) }
+    }
+}
+
+// MARK: - Press and hold: the phone's own context menu
+
+/// Where one of the page's buttons with a menu is, and how round its corners are.
+struct HoldZone {
+    let rect: CGRect
+    let radius: CGFloat
+}
+
+extension WebViewController: UIContextMenuInteractionDelegate {
+    func contextMenuInteraction(_ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
+        guard let hit = holdZone(at: location), let menu = holdMenu(id: hit.id) else {
+            activeHold = nil
+            return nil
+        }
+        activeHold = hit
+        return UIContextMenuConfiguration(identifier: hit.id as NSString, previewProvider: nil) { _ in menu }
+    }
+
+    func contextMenuInteraction(_ interaction: UIContextMenuInteraction, configuration: UIContextMenuConfiguration, highlightPreviewForItemWithIdentifier identifier: any NSCopying) -> UITargetedPreview? {
+        holdPreview()
+    }
+
+    func contextMenuInteraction(_ interaction: UIContextMenuInteraction, configuration: UIContextMenuConfiguration, dismissalPreviewForItemWithIdentifier identifier: any NSCopying) -> UITargetedPreview? {
+        holdPreview()
+    }
+
+    func contextMenuInteraction(_ interaction: UIContextMenuInteraction, previewForHighlightingMenuWithConfiguration configuration: UIContextMenuConfiguration) -> UITargetedPreview? {
+        holdPreview()
+    }
+
+    func contextMenuInteraction(_ interaction: UIContextMenuInteraction, previewForDismissingMenuWithConfiguration configuration: UIContextMenuConfiguration) -> UITargetedPreview? {
+        holdPreview()
     }
 }

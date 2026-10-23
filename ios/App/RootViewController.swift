@@ -7,7 +7,10 @@ final class RootViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = AppSettings.startBackground
-        if let url = AppSettings.artifactURL {
+        if ProcessInfo.processInfo.arguments.contains("-GymDemo") {
+            // UI checks in CI: the native parts on a test page
+            swap(to: WebViewController(demoHTML: DemoPage.html))
+        } else if let url = AppSettings.artifactURL {
             showWeb(url)
         } else {
             showSetup(cancellable: false)
