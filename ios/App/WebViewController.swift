@@ -218,6 +218,8 @@ final class WebViewController: UIViewController {
         view.backgroundColor = color
         errorView?.backgroundColor = color
         pageDark = (body["dark"] as? Bool) ?? (color.luminance < 0.5)
+        // the phone's own menus, alerts and sheets follow the app's theme, not the phone's
+        view.overrideUserInterfaceStyle = pageDark ? .dark : .light
         setNeedsStatusBarAppearanceUpdate()
         styleWheels()
         if focused {

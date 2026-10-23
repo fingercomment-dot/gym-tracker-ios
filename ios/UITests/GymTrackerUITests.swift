@@ -49,11 +49,14 @@ final class GymTrackerUITests: XCTestCase {
             hold.press(forDuration: 1.6)
             sleep(1)
             shot("05-menu")
-            let item = app.buttons["Отправить Claude"]
+            // a menu item's label is its title and its subtitle
+            let item = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Отправить Claude")).firstMatch
             if item.waitForExistence(timeout: 4) {
                 item.tap()
                 sleep(1)
                 shot("06-picked")
+                // the page heard the pick
+                XCTAssertTrue(web.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "\"pick\":\"1\"")).firstMatch.waitForExistence(timeout: 3), "the pick did not reach the page")
             } else {
                 XCTFail("the press-and-hold menu did not show")
             }
