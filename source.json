@@ -19,6 +19,15 @@
       "screenshotURLs": [],
       "versions": [
         {
+          "version": "1.0.10",
+          "buildVersion": "10",
+          "date": "2026-10-23T12:20:38Z",
+          "localizedDescription": "Таймер отдыха на экране тренировки виден всегда",
+          "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.10/GymTracker.ipa",
+          "size": 830182,
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.0.9",
           "buildVersion": "9",
           "date": "2026-10-23T12:09:54Z",
@@ -104,11 +113,11 @@
         "entitlements": [],
         "privacy": {}
       },
-      "version": "1.0.9",
-      "versionDate": "2026-10-23T12:09:54Z",
-      "versionDescription": "Системное нижнее меню и экран тренировки на родном списке iOS",
-      "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.9/GymTracker.ipa",
-      "size": 829845
+      "version": "1.0.10",
+      "versionDate": "2026-10-23T12:20:38Z",
+      "versionDescription": "Таймер отдыха на экране тренировки виден всегда",
+      "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.10/GymTracker.ipa",
+      "size": 830182
     }
   ],
   "news": []
