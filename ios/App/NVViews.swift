@@ -911,7 +911,8 @@ private struct NVFieldRow: View {
     }
 }
 
-/// Colour circles, the chosen one ringed (like a list's colour in Reminders).
+/// Colour circles, the chosen one ringed (like a list's colour in Reminders). More than fit in the row scroll
+/// sideways under the finger (to the cell's edges), the chosen one in the middle from the start.
 private struct NVSwatchesRow: View {
     let row: NVNode
     @ObservedObject var model: NVTabModel
@@ -920,31 +921,41 @@ private struct NVSwatchesRow: View {
     var body: some View {
         let options = row.list("opts")
         let selected = local ?? row.str("sel")
-        HStack(spacing: 0) {
-            ForEach(Array(options.enumerated()), id: \.offset) { _, option in
-                let value = option.str("v") ?? ""
-                Button {
-                    local = value
-                    model.act(row.str("fn"), value)
-                } label: {
-                    Circle()
-                        .fill(option.color("c") ?? .gray)
-                        .frame(width: 30, height: 30)
-                        .padding(5)
-                        .overlay {
-                            if value == selected {
-                                Circle().strokeBorder(Color.secondary, lineWidth: 2.5)
-                            }
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(Array(options.enumerated()), id: \.offset) { i, option in
+                        let value = option.str("v") ?? ""
+                        Button {
+                            local = value
+                            model.act(row.str("fn"), value)
+                        } label: {
+                            Circle()
+                                .fill(option.color("c") ?? .gray)
+                                .frame(width: 30, height: 30)
+                                .padding(5)
+                                .overlay {
+                                    if value == selected {
+                                        Circle().strokeBorder(Color.secondary, lineWidth: 2.5)
+                                    }
+                                }
+                                .contentShape(Circle())
                         }
-                        .frame(maxWidth: .infinity)
-                        .contentShape(Rectangle())
+                        .buttonStyle(.plain)
+                        .id(i)
+                        .accessibilityLabel(option.str("t") ?? value)
+                        .accessibilityAddTraits(value == selected ? .isSelected : [])
+                    }
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(option.str("t") ?? value)
-                .accessibilityAddTraits(value == selected ? .isSelected : [])
+                .padding(.vertical, 4)
+            }
+            .scrollClipDisabled()
+            .onAppear {
+                if let i = options.firstIndex(where: { ($0.str("v") ?? "") == selected }) {
+                    proxy.scrollTo(i, anchor: .center)
+                }
             }
         }
-        .padding(.vertical, 4)
         .onChange(of: row.str("sel")) { _, _ in local = nil }
         .accessibilityIdentifier("nv.swatches." + row.id)
     }

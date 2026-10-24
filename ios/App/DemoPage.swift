@@ -270,7 +270,7 @@ enum DemoPage {
              { rows: range(0, 59).map(v => String(v).padStart(2, '0')), sel: 30, units: ['с'], label: 'Секунды' }] });
     const hold = document.getElementById('hold');
     hold.onclick = () => { log.textContent = 'tap'; };
-    N.postMessage({ type: 'holdMenu', id: 'hero', title: 'Что делает кнопка', items: [
+    N.postMessage({ type: 'holdMenu', id: 'hero', title: 'Что делает кнопка', tap: true, items: [
       { id: '0', title: 'Запланировать', sub: 'поставить тренировку на сегодня в календарь', sf: 'calendar', on: true },
       { id: '1', title: 'Отправить Claude', sub: 'копирует отчёт о последней тренировке для чата', sf: 'doc.on.doc', on: false },
       { id: '2', title: 'Как прошло?', sub: 'заметка к последней тренировке', sf: 'square.and.pencil', on: false },

@@ -481,6 +481,9 @@ final class GymTrackerUITests: XCTestCase {
             } else {
                 XCTFail("the press-and-hold menu did not show")
             }
+            // a plain tap on the button: the app's invisible button over it hands it to the page's button
+            hold.tap()
+            XCTAssertTrue(web.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "holdTap")).firstMatch.waitForExistence(timeout: 3), "the tap did not reach the page's button")
         }
         XCTAssertEqual(app.state, .runningForeground, "the app is not running at the end")
     }

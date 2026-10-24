@@ -37,6 +37,7 @@ final class WebViewController: UIViewController {
     /// Press-and-hold menus the page has described, by id, and where their buttons are on screen right now.
     private var holdMenus: [String: [String: Any]] = [:]
     private var holdZones: [String: HoldZone] = [:]
+    private var holdButtons: [String: HoldButton] = [:]
     /// The button whose menu is up (or coming up): its place when the press began.
     private var activeHold: (id: String, zone: HoldZone)?
     /// A test page instead of the app (UI checks in CI: launch argument -GymDemo).
@@ -447,13 +448,14 @@ final class WebViewController: UIViewController {
 
     static let holdScheme = "gymtracker"
 
-    /// The menu the page described for this button, as the phone's own menu; a pick goes back to the page.
-    fileprivate func holdMenu(id: String) -> UIMenu? {
+    /// The menu the page described for this button, as the phone's own menu; a pick goes back to the page. The
+    /// compact one (a button's menu) has just the titles, like the app's own buttons with a menu.
+    fileprivate func holdMenu(id: String, compact: Bool = false) -> UIMenu? {
         guard let def = holdMenus[id] else { return nil }
         let items = def["items"] as? [[String: Any]] ?? []
         let actions: [UIMenuElement] = items.compactMap { (item: [String: Any]) -> UIMenuElement? in
             guard let key = item["id"] as? String else { return nil }
-            let sub = item["sub"] as? String
+            let sub = compact ? nil : item["sub"] as? String
             let image = (item["sf"] as? String).flatMap { $0.isEmpty ? nil : UIImage(systemName: $0) }
             let action = UIAction(title: item["title"] as? String ?? "", subtitle: sub?.isEmpty == false ? sub : nil, image: image) { [weak self] _ in
                 self?.sendToApp(["type": "hold", "id": id, "pick": key])
@@ -478,6 +480,34 @@ final class WebViewController: UIViewController {
             }
             let radius = (z["r"] as? NSNumber)?.doubleValue ?? 12
             holdZones[id] = HoldZone(rect: CGRect(x: x, y: y, width: w, height: h), radius: CGFloat(radius))
+        }
+        placeHoldButtons()
+    }
+
+    /// Over each of the page's buttons with a menu (page 12.12+, which takes the taps back: `tap` in its menu) lies an
+    /// invisible button of the phone's own: a tap goes to the page's button, a press and hold opens the menu the way
+    /// any button with a menu does in iOS — anchored to the button, compact, the screen not blurred — instead of a
+    /// lifted picture of the page's button over a blurred screen.
+    private func placeHoldButtons() {
+        for id in Array(holdButtons.keys) where holdZones[id] == nil || (holdMenus[id]?["tap"] as? Bool) != true {
+            holdButtons.removeValue(forKey: id)?.removeFromSuperview()
+        }
+        for (id, zone) in holdZones {
+            guard (holdMenus[id]?["tap"] as? Bool) == true, let menu = holdMenu(id: id, compact: true) else { continue }
+            let button: HoldButton
+            if let existing = holdButtons[id] {
+                button = existing
+            } else {
+                button = HoldButton(frame: .zero)
+                button.showsMenuAsPrimaryAction = false
+                button.isAccessibilityElement = false
+                button.addAction(UIAction { [weak self] _ in self?.sendToApp(["type": "holdTap", "id": id]) }, for: .primaryActionTriggered)
+                view.insertSubview(button, aboveSubview: webView)
+                holdButtons[id] = button
+            }
+            button.frame = webView.convert(zone.rect, to: view)
+            button.layer.cornerRadius = min(zone.radius, zone.rect.height / 2)
+            button.menu = menu
         }
     }
 
@@ -695,6 +725,7 @@ extension WebViewController: WKScriptMessageHandler {
             handlePicker(body)
         case "holdMenu":
             if let id = body["id"] as? String { holdMenus[id] = body }
+            placeHoldButtons()
         case "holdZones":
             updateHoldZones(body["zones"] as? [String: Any] ?? [:])
         case "tabs":
@@ -788,6 +819,7 @@ extension WebViewController: WKNavigationDelegate {
         pickerPanel?.hide(notify: false)
         holdMenus = [:]
         holdZones = [:]
+        placeHoldButtons()
         nativeTabs.apply(["show": false])
         nativeTabs.reset()
         nvSheets.reset()
@@ -874,6 +906,26 @@ extension WebViewController: WKUIDelegate {
 struct HoldZone {
     let rect: CGRect
     let radius: CGFloat
+}
+
+/// The invisible button over one of the page's buttons with a menu: it only shows the press.
+final class HoldButton: UIButton {
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        layer.cornerCurve = .continuous
+        clipsToBounds = true
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override var isHighlighted: Bool {
+        didSet {
+            guard isHighlighted != oldValue else { return }
+            UIView.animate(withDuration: isHighlighted ? 0.05 : 0.25, delay: 0, options: [.allowUserInteraction, .beginFromCurrentState]) {
+                self.backgroundColor = self.isHighlighted ? UIColor.label.withAlphaComponent(0.1) : .clear
+            }
+        }
+    }
 }
 
 extension WebViewController: UIContextMenuInteractionDelegate {
