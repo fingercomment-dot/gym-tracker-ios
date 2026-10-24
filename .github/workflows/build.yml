@@ -204,6 +204,11 @@ jobs:
           kill -INT $REC 2>/dev/null; sleep 4
           grep -E "error:|failed|crash|Crash|Test Case|\*\* TEST" ../uitest4.log | tail -20
           echo "split check exit: $STATUS4"
+          # what failed, as annotations (they can be read through the API even where the logs can't)
+          echo "::notice title=uitest::checks exit $STATUS, split check exit $STATUS4, video $(ls -la ../split.mp4 2>/dev/null | awk '{print $5}') bytes"
+          grep -hE "error: -\[|: error: |Test Case .* failed" ../uitest.log ../uitest4.log | head -20 | while IFS= read -r line; do
+            echo "::warning title=uitest::$(printf '%s' "$line" | sed -e 's/^.*GymTrackerUITests\.swift:/swift:/' | cut -c1-350)"
+          done
           if [ "$STATUS" = "0" ]; then STATUS=$STATUS4; fi
           echo "$STATUS" > ../uitest.status
 
@@ -244,9 +249,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          find shots -type f -size 0 -delete
+          mkdir -p video
+          [ -f shots/split.mp4 ] && mv shots/split.mp4 video/split.mp4
           gh release delete ci-shots --yes --cleanup-tag || true
           gh release create ci-shots shots/* --prerelease --target "$GITHUB_SHA" \
             --title "CI: снимки из симулятора" --notes "Снимки нативных частей приложения из симулятора iPhone для коммита $GITHUB_SHA. Не для установки."
+          # the screen recording of the «60/40» check goes on its own (big; a failed upload doesn't lose the pictures)
+          if [ -f video/split.mp4 ]; then gh release upload ci-shots video/split.mp4 --clobber || echo "::warning title=video::upload failed"; fi
 
       - name: Fail when the checks failed
         if: always()
