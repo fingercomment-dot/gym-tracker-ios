@@ -2,18 +2,18 @@ import AppIntents
 import Foundation
 
 /// Apple Health through the Shortcuts app (web app 12.13+). The app has no HealthKit permission of its own (iloader
-/// signs it without one), so a shortcut does the reading: «Найти образцы Здоровья» for sleep and walking + running
-/// distance (an iPhone alone writes these: time in bed, and the distance the page finds runs in by their pace), and
-/// with an Apple Watch also heart rate variability, resting pulse and running speed; this action takes their values
-/// and times. The shortcut runs by an automation (when the app opens, or every morning); the instructions are in the web app's
+/// signs it without one), so a shortcut does the reading: «Найти образцы Здоровья» for sleep (an Apple Watch or a sleep
+/// app writes it; an iPhone alone hasn't since iOS 18) and walking + running distance (the iPhone itself — the page
+/// finds runs in it by their pace), and with a watch also heart rate variability, resting pulse and running speed;
+/// this action takes their values and times. The shortcut runs by an automation (when the app opens, or every morning); the instructions are in the web app's
 /// Settings → «Здоровье». What comes in waits here until the page has saved it.
 struct ImportHealthIntent: AppIntent {
     static var title: LocalizedStringResource = "Передать данные из «Здоровья»"
     static var description = IntentDescription("Сон и пробежки, а с Apple Watch ещё стадии сна, вариабельность пульса и пульс в покое — в Gym Tracker. Каждое поле — результат «Найти образцы Здоровья» и его свойство: значение, дата начала или окончания.")
     static var openAppWhenRun: Bool = false
 
-    // no parameter summary: Shortcuts then lists every field as a row, in this order — the shortcut's steps: what an
-    // iPhone writes by itself first, then what only an Apple Watch writes
+    // no parameter summary: Shortcuts then lists every field as a row, in this order — the shortcut's steps: sleep and
+    // distance first, then what only an Apple Watch writes
     @Parameter(title: "Сон — значения", description: "Анализ сна → Значение")
     var sleepValues: [String]?
     @Parameter(title: "Сон — начало", description: "Анализ сна → Дата начала")
