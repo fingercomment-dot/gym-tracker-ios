@@ -80,15 +80,22 @@ final class GymTrackerUITests: XCTestCase {
             edit.tap()
             sleep(1)
             shot("22a-today-edit")
-            let before = firstExercise.frame.minY
+            // the simulator's synthetic drag on the handle sometimes doesn't take (same code, same screen):
+            // up to three tries; moved = the first exercise is now below the second (not just «somewhere else»,
+            // which a scroll would give too)
             let handleX = app.frame.width - 44
-            let start = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: handleX, dy: firstExercise.frame.midY))
-            let end = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: handleX, dy: nextExercise.frame.maxY + 8))
-            start.press(forDuration: 0.5, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.4)
-            sleep(2)
+            let origin = app.coordinate(withNormalizedOffset: .zero)
+            var moved = false
+            for attempt in 1...3 where !moved {
+                let start = origin.withOffset(CGVector(dx: handleX, dy: firstExercise.frame.midY))
+                let end = origin.withOffset(CGVector(dx: handleX, dy: nextExercise.frame.maxY + 8))
+                start.press(forDuration: attempt == 1 ? 0.5 : 0.9, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.4)
+                sleep(2)
+                moved = firstExercise.frame.minY > nextExercise.frame.minY
+                if !moved { print("reorder: try \(attempt) did not take") }
+            }
             shot("22-today-dragged")
-            let after = app.buttons["nv.row.s:plan/ex:A1"].frame.minY
-            XCTAssertGreaterThan(after, before + 10, "reordering did not move the row (\(before) → \(after))")
+            XCTAssertTrue(moved, "reordering did not move the row (first \(firstExercise.frame.minY), second \(nextExercise.frame.minY))")
             edit.tap()
             sleep(1)
         } else {
