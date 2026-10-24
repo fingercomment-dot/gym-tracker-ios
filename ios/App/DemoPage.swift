@@ -54,6 +54,7 @@ enum DemoPage {
     </div>
     <div class="btns"><button class="btn main" id="go" aria-label="Тренировка">Тренировка</button><button class="btn gray" id="hold" aria-label="Запланировать">Запланировать</button></div>
     <div id="log">—</div>
+    <div id="hk"></div>
     </div>
     </div>
     <div id="back"></div>
@@ -248,11 +249,14 @@ enum DemoPage {
         requestAnimationFrame(() => requestAnimationFrame(() => N.postMessage({ type: 'tabready', tab: tab, page: !nativeTab() }))); }
       if (d.type === 'wact') act(d);
       if (d.type === 'nva') { nvAct(d); return true; }
+      /* what the Shortcuts app brought from Health (-GymHealthDemo puts a batch in the app's inbox): shown and taken */
+      if (d.type === 'health') { const it = d.items || []; document.getElementById('hk').textContent = 'health ' + it.length + (it[0] && it[0].sleep ? ' sleep ' + it[0].sleep.v.length : ''); N.postMessage({ type: 'healthDone', ids: it.map(x => x.id) }); return true; }
       if (d.type === 'mini' && d.a === 'open') { W.on = true; sendWorkout(); }
       log.textContent = JSON.stringify(d);
       return true;
     };
     N.postMessage({ type: 'hello', v: 'demo' });
+    setTimeout(() => N.postMessage({ type: 'ready' }), 600);
     N.postMessage({ type: 'look', bg: '#1E1E1E', accent: '#8B6CEF', dark: true, sheet: '#262626', label: '#DADADA', label2: '#A3A3A3', tint: '#A88BFA' });
     tabs(true);
     pageTab();

@@ -921,43 +921,54 @@ private struct NVSwatchesRow: View {
     var body: some View {
         let options = row.list("opts")
         let selected = local ?? row.str("sel")
-        ScrollViewReader { proxy in
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    ForEach(Array(options.enumerated()), id: \.offset) { i, option in
-                        let value = option.str("v") ?? ""
-                        Button {
-                            local = value
-                            model.act(row.str("fn"), value)
-                        } label: {
-                            Circle()
-                                .fill(option.color("c") ?? .gray)
-                                .frame(width: 30, height: 30)
-                                .padding(5)
-                                .overlay {
-                                    if value == selected {
-                                        Circle().strokeBorder(Color.secondary, lineWidth: 2.5)
-                                    }
-                                }
-                                .contentShape(Circle())
+        // all of them fit: spread over the row; more than fit: a row that scrolls
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 0) {
+                ForEach(Array(options.enumerated()), id: \.offset) { _, option in
+                    swatch(option, selected: selected).frame(maxWidth: .infinity)
+                }
+            }
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(Array(options.enumerated()), id: \.offset) { i, option in
+                            swatch(option, selected: selected).id(i)
                         }
-                        .buttonStyle(.plain)
-                        .id(i)
-                        .accessibilityLabel(option.str("t") ?? value)
-                        .accessibilityAddTraits(value == selected ? .isSelected : [])
                     }
                 }
-                .padding(.vertical, 4)
-            }
-            .scrollClipDisabled()
-            .onAppear {
-                if let i = options.firstIndex(where: { ($0.str("v") ?? "") == selected }) {
-                    proxy.scrollTo(i, anchor: .center)
+                .scrollClipDisabled()
+                .onAppear {
+                    if let i = options.firstIndex(where: { ($0.str("v") ?? "") == selected }) {
+                        proxy.scrollTo(i, anchor: .center)
+                    }
                 }
             }
         }
+        .padding(.vertical, 4)
         .onChange(of: row.str("sel")) { _, _ in local = nil }
         .accessibilityIdentifier("nv.swatches." + row.id)
+    }
+
+    private func swatch(_ option: NVNode, selected: String?) -> some View {
+        let value = option.str("v") ?? ""
+        return Button {
+            local = value
+            model.act(row.str("fn"), value)
+        } label: {
+            Circle()
+                .fill(option.color("c") ?? .gray)
+                .frame(width: 30, height: 30)
+                .padding(5)
+                .overlay {
+                    if value == selected {
+                        Circle().strokeBorder(Color.secondary, lineWidth: 2.5)
+                    }
+                }
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(option.str("t") ?? value)
+        .accessibilityAddTraits(value == selected ? .isSelected : [])
     }
 }
 

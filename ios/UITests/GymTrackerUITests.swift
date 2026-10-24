@@ -413,10 +413,12 @@ final class GymTrackerUITests: XCTestCase {
     /// the workout list slides over the page's Today and away from it. CI records the screen during this test.
     func test4SplitTabs() {
         app.terminate()
-        app.launchArguments = ["-GymDemo", "-GymSplit"]
+        app.launchArguments = ["-GymDemo", "-GymSplit", "-GymHealthDemo"]
         app.launch()
         XCTAssertTrue(web.waitForExistence(timeout: 40), "no web view")
         XCTAssertTrue(web.staticTexts["Сегодня"].waitForExistence(timeout: 30), "the page's Today did not load")
+        // what the Shortcuts app brought from Health reaches the page once it says it's ready
+        XCTAssertTrue(web.staticTexts["health 1 sleep 3"].waitForExistence(timeout: 10), "the Health batch did not reach the page")
         let tabBar = app.tabBars.firstMatch
         XCTAssertTrue(tabBar.waitForExistence(timeout: 5), "no tab bar")
         sleep(2)

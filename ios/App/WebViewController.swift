@@ -38,6 +38,8 @@ final class WebViewController: UIViewController {
     private var holdMenus: [String: [String: Any]] = [:]
     private var holdZones: [String: HoldZone] = [:]
     private var holdButtons: [String: HoldButton] = [:]
+    /// The page is connected to its data (it said `ready`): it can take what came from Health.
+    private var pageReady = false
     /// The button whose menu is up (or coming up): its place when the press began.
     private var activeHold: (id: String, zone: HoldZone)?
     /// A test page instead of the app (UI checks in CI: launch argument -GymDemo).
@@ -71,6 +73,22 @@ final class WebViewController: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = AppSettings.startBackground
         pageDark = (view.backgroundColor?.luminance ?? 0) < 0.5
+        // what the Shortcuts app brought from Health goes to the page as soon as the page can save it
+        NotificationCenter.default.addObserver(forName: HealthInbox.arrived, object: nil, queue: .main) { [weak self] _ in
+            self?.flushHealth()
+        }
+        NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.flushHealth()
+        }
+        // the simulator check: a batch as the shortcut would bring it
+        if ProcessInfo.processInfo.arguments.contains("-GymHealthDemo") {
+            let now = Date().timeIntervalSince1970 * 1000
+            HealthInbox.remove(ids: ["demo"])
+            HealthInbox.add(["id": "demo", "at": now,
+                             "sleep": ["v": ["Основной сон", "Глубокий сон", "Быстрый сон"],
+                                       "s": [now - 8 * 3_600_000, now - 6 * 3_600_000, now - 5 * 3_600_000],
+                                       "e": [now - 6 * 3_600_000, now - 5 * 3_600_000, now - 4 * 3_600_000]]])
+        }
 
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .default()
@@ -228,6 +246,15 @@ final class WebViewController: UIViewController {
               let data = try? JSONSerialization.data(withJSONObject: payload),
               let json = String(data: data, encoding: .utf8) else { return }
         webView.evaluateJavaScript("window.__gymNative ? window.__gymNative(\(json)) : false", in: frame, in: .page, completionHandler: nil)
+    }
+
+    /// Health data from the shortcut (see HealthIntent.swift): handed to the page once it is connected to its data
+    /// (`ready`); the page answers `healthDone` with what it saved, and only then it leaves the inbox.
+    private func flushHealth() {
+        guard pageReady, appFrame != nil else { return }
+        let items = HealthInbox.items()
+        guard !items.isEmpty else { return }
+        sendToApp(["type": "health", "items": items])
     }
 
     private static func jsString(_ text: String) -> String {
@@ -706,11 +733,16 @@ extension WebViewController: WKScriptMessageHandler {
                 "insets": focused ? insetsPayload() : NSNull(),
                 "picker": true,
                 "holdZones": true,
+                "health": true,
                 "ui": ["tabs": true, "workout": true, "nv": 3, "mini": NativeTabs.hasPlayerBar, "toast": true],
             ])
         case "ready":
             if appFrame == nil { appFrame = message.frameInfo }
             focusIfWanted()
+            pageReady = true
+            flushHealth()
+        case "healthDone":
+            HealthInbox.remove(ids: body["ids"] as? [String] ?? [])
         case "haptic":
             Haptics.play(body["style"] as? String ?? "selection")
         case "live":
@@ -820,6 +852,7 @@ extension WebViewController: WKNavigationDelegate {
         holdMenus = [:]
         holdZones = [:]
         placeHoldButtons()
+        pageReady = false
         nativeTabs.apply(["show": false])
         nativeTabs.reset()
         nvSheets.reset()
