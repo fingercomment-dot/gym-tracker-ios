@@ -19,6 +19,15 @@
       "screenshotURLs": [],
       "versions": [
         {
+          "version": "1.0.30",
+          "buildVersion": "30",
+          "date": "2026-10-24T13:51:43Z",
+          "localizedDescription": "Health demo batch and intent: typed sub-expressions so the compiler can check them",
+          "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.30/GymTracker.ipa",
+          "size": 1317036,
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.0.28",
           "buildVersion": "28",
           "date": "2026-10-24T13:11:05Z",
@@ -98,26 +107,17 @@
           "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.20/GymTracker.ipa",
           "size": 1281400,
           "minOSVersion": "17.0"
-        },
-        {
-          "version": "1.0.19",
-          "buildVersion": "19",
-          "date": "2026-10-24T01:10:27Z",
-          "localizedDescription": "Карточка упражнения, пошаговый экран тренировки и итоги — системные экраны iOS",
-          "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.19/GymTracker.ipa",
-          "size": 1278564,
-          "minOSVersion": "17.0"
         }
       ],
       "appPermissions": {
         "entitlements": [],
         "privacy": {}
       },
-      "version": "1.0.28",
-      "versionDate": "2026-10-24T13:11:05Z",
-      "versionDescription": "Цвета в окне листаются пальцем; меню по удержанию на «Сегодня» снова системное (как у кнопки с меню, без размытия)",
-      "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.28/GymTracker.ipa",
-      "size": 1298410
+      "version": "1.0.30",
+      "versionDate": "2026-10-24T13:51:43Z",
+      "versionDescription": "Health demo batch and intent: typed sub-expressions so the compiler can check them",
+      "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.30/GymTracker.ipa",
+      "size": 1317036
     }
   ],
   "news": []
