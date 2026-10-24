@@ -19,6 +19,15 @@
       "screenshotURLs": [],
       "versions": [
         {
+          "version": "1.0.20",
+          "buildVersion": "20",
+          "date": "2026-10-24T01:27:31Z",
+          "localizedDescription": "Даты на графиках по-русски, полоска восстановления в строке, таймеры на тестовой странице с нуля",
+          "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.20/GymTracker.ipa",
+          "size": 1281400,
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.0.19",
           "buildVersion": "19",
           "date": "2026-10-24T01:10:27Z",
@@ -98,26 +107,17 @@
           "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.10/GymTracker.ipa",
           "size": 830182,
           "minOSVersion": "17.0"
-        },
-        {
-          "version": "1.0.9",
-          "buildVersion": "9",
-          "date": "2026-10-23T12:09:54Z",
-          "localizedDescription": "Системное нижнее меню и экран тренировки на родном списке iOS",
-          "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.9/GymTracker.ipa",
-          "size": 829845,
-          "minOSVersion": "17.0"
         }
       ],
       "appPermissions": {
         "entitlements": [],
         "privacy": {}
       },
-      "version": "1.0.19",
-      "versionDate": "2026-10-24T01:10:27Z",
-      "versionDescription": "Карточка упражнения, пошаговый экран тренировки и итоги — системные экраны iOS",
-      "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.19/GymTracker.ipa",
-      "size": 1278564
+      "version": "1.0.20",
+      "versionDate": "2026-10-24T01:27:31Z",
+      "versionDescription": "Даты на графиках по-русски, полоска восстановления в строке, таймеры на тестовой странице с нуля",
+      "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.20/GymTracker.ipa",
+      "size": 1281400
     }
   ],
   "news": []
