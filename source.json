@@ -19,6 +19,15 @@
       "screenshotURLs": [],
       "versions": [
         {
+          "version": "1.0.28",
+          "buildVersion": "28",
+          "date": "2026-10-24T13:11:05Z",
+          "localizedDescription": "Цвета в окне листаются пальцем; меню по удержанию на «Сегодня» снова системное (как у кнопки с меню, без размытия)",
+          "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.28/GymTracker.ipa",
+          "size": 1298410,
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.0.27",
           "buildVersion": "27",
           "date": "2026-10-24T07:25:14Z",
@@ -98,26 +107,17 @@
           "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.19/GymTracker.ipa",
           "size": 1278564,
           "minOSVersion": "17.0"
-        },
-        {
-          "version": "1.0.18",
-          "buildVersion": "18",
-          "date": "2026-10-23T14:40:54Z",
-          "localizedDescription": "Порядок упражнений — кнопкой «Изменить», метки тренировок в календаре, даты по-русски",
-          "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.18/GymTracker.ipa",
-          "size": 1184337,
-          "minOSVersion": "17.0"
         }
       ],
       "appPermissions": {
         "entitlements": [],
         "privacy": {}
       },
-      "version": "1.0.27",
-      "versionDate": "2026-10-24T07:25:14Z",
-      "versionDescription": "Окно, которое страница закрыла, не остаётся на экране: если iPhone пропустил закрытие, оно закрывается ещё раз",
-      "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.27/GymTracker.ipa",
-      "size": 1289478
+      "version": "1.0.28",
+      "versionDate": "2026-10-24T13:11:05Z",
+      "versionDescription": "Цвета в окне листаются пальцем; меню по удержанию на «Сегодня» снова системное (как у кнопки с меню, без размытия)",
+      "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.28/GymTracker.ipa",
+      "size": 1298410
     }
   ],
   "news": []
