@@ -19,6 +19,15 @@
       "screenshotURLs": [],
       "versions": [
         {
+          "version": "1.0.32",
+          "buildVersion": "32",
+          "date": "2026-10-24T14:00:48Z",
+          "localizedDescription": "Health action: fields in the order of the shortcut's steps (iPhone first, Apple Watch after), no custom summary",
+          "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.32/GymTracker.ipa",
+          "size": 1316395,
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.0.30",
           "buildVersion": "30",
           "date": "2026-10-24T13:51:43Z",
@@ -98,26 +107,17 @@
           "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.21/GymTracker.ipa",
           "size": 1281399,
           "minOSVersion": "17.0"
-        },
-        {
-          "version": "1.0.20",
-          "buildVersion": "20",
-          "date": "2026-10-24T01:27:31Z",
-          "localizedDescription": "Даты на графиках по-русски, полоска восстановления в строке, таймеры на тестовой странице с нуля",
-          "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.20/GymTracker.ipa",
-          "size": 1281400,
-          "minOSVersion": "17.0"
         }
       ],
       "appPermissions": {
         "entitlements": [],
         "privacy": {}
       },
-      "version": "1.0.30",
-      "versionDate": "2026-10-24T13:51:43Z",
-      "versionDescription": "Health demo batch and intent: typed sub-expressions so the compiler can check them",
-      "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.30/GymTracker.ipa",
-      "size": 1317036
+      "version": "1.0.32",
+      "versionDate": "2026-10-24T14:00:48Z",
+      "versionDescription": "Health action: fields in the order of the shortcut's steps (iPhone first, Apple Watch after), no custom summary",
+      "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.32/GymTracker.ipa",
+      "size": 1316395
     }
   ],
   "news": []
