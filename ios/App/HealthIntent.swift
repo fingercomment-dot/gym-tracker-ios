@@ -5,52 +5,37 @@ import Foundation
 /// signs it without one), so a shortcut does the reading: «Найти образцы Здоровья» for sleep and walking + running
 /// distance (an iPhone alone writes these: time in bed, and the distance the page finds runs in by their pace), and
 /// with an Apple Watch also heart rate variability, resting pulse and running speed; this action takes their values
-/// and times. The
-/// shortcut runs by an automation (when the app opens, or every morning); the instructions are in the web app's
+/// and times. The shortcut runs by an automation (when the app opens, or every morning); the instructions are in the web app's
 /// Settings → «Здоровье». What comes in waits here until the page has saved it.
 struct ImportHealthIntent: AppIntent {
     static var title: LocalizedStringResource = "Передать данные из «Здоровья»"
     static var description = IntentDescription("Сон и пробежки, а с Apple Watch ещё стадии сна, вариабельность пульса и пульс в покое — в Gym Tracker. Каждое поле — результат «Найти образцы Здоровья» и его свойство: значение, дата начала или окончания.")
     static var openAppWhenRun: Bool = false
 
+    // no parameter summary: Shortcuts then lists every field as a row, in this order — the shortcut's steps: what an
+    // iPhone writes by itself first, then what only an Apple Watch writes
     @Parameter(title: "Сон — значения", description: "Анализ сна → Значение")
     var sleepValues: [String]?
     @Parameter(title: "Сон — начало", description: "Анализ сна → Дата начала")
     var sleepStarts: [Date]?
     @Parameter(title: "Сон — конец", description: "Анализ сна → Дата окончания")
     var sleepEnds: [Date]?
-    @Parameter(title: "ВСР — значения", description: "Вариабельность сердечного ритма → Значение")
-    var hrvValues: [Double]?
-    @Parameter(title: "ВСР — время", description: "Вариабельность сердечного ритма → Дата начала")
-    var hrvTimes: [Date]?
-    @Parameter(title: "Пульс в покое — значения", description: "Пульс в покое → Значение")
-    var restValues: [Double]?
-    @Parameter(title: "Пульс в покое — время", description: "Пульс в покое → Дата начала")
-    var restTimes: [Date]?
-    @Parameter(title: "Скорость бега — время", description: "Скорость бега → Дата начала")
-    var runTimes: [Date]?
     @Parameter(title: "Расстояние — значения", description: "Ходьба и бег → Значение")
     var distValues: [Double]?
-    @Parameter(title: "Расстояние — время", description: "Ходьба и бег → Дата начала")
+    @Parameter(title: "Расстояние — начало", description: "Ходьба и бег → Дата начала")
     var distTimes: [Date]?
     @Parameter(title: "Расстояние — конец", description: "Ходьба и бег → Дата окончания")
     var distEnds: [Date]?
-
-    static var parameterSummary: some ParameterSummary {
-        Summary("Передать в Gym Tracker") {
-            \.$sleepValues
-            \.$sleepStarts
-            \.$sleepEnds
-            \.$hrvValues
-            \.$hrvTimes
-            \.$restValues
-            \.$restTimes
-            \.$runTimes
-            \.$distValues
-            \.$distTimes
-            \.$distEnds
-        }
-    }
+    @Parameter(title: "ВСР — значения", description: "Вариабельность сердечного ритма → Значение (только с Apple Watch)")
+    var hrvValues: [Double]?
+    @Parameter(title: "ВСР — время", description: "Вариабельность сердечного ритма → Дата начала (только с Apple Watch)")
+    var hrvTimes: [Date]?
+    @Parameter(title: "Пульс в покое — значения", description: "Пульс в покое → Значение (только с Apple Watch)")
+    var restValues: [Double]?
+    @Parameter(title: "Пульс в покое — время", description: "Пульс в покое → Дата начала (только с Apple Watch)")
+    var restTimes: [Date]?
+    @Parameter(title: "Скорость бега — время", description: "Скорость бега → Дата начала (только с Apple Watch)")
+    var runTimes: [Date]?
 
     func perform() async throws -> some IntentResult {
         let ms: (Date) -> Double = { ($0.timeIntervalSince1970 * 1000).rounded() }
