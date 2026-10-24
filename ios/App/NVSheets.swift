@@ -32,6 +32,14 @@ final class NVSheets: NSObject, UIAdaptivePresentationControllerDelegate {
             stack.removeSubrange(cut...)
             if let first = gone.first(where: { $0.vc.presentingViewController != nil && !$0.vc.isBeingDismissed }) {
                 first.vc.presentingViewController?.dismiss(animated: true)
+                // UIKit now and then ignores a dismiss (something else still settling): a sheet the page has closed
+                // must not stay on the screen over whatever came under it — look again and close it then
+                let vc = first.vc
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self, weak vc] in
+                    guard let self, let vc, vc.presentingViewController != nil, !vc.isBeingDismissed,
+                          !self.stack.contains(where: { $0.vc === vc }) else { return }
+                    vc.presentingViewController?.dismiss(animated: true)
+                }
             }
         }
         for sheet in list {
