@@ -2,13 +2,15 @@ import AppIntents
 import Foundation
 
 /// Apple Health through the Shortcuts app (web app 12.13+). The app has no HealthKit permission of its own (iloader
-/// signs it without one), so a shortcut does the reading: «Найти образцы Здоровья» for sleep, heart rate variability,
-/// resting pulse, running speed and walking + running distance, and this action takes their values and times. The
+/// signs it without one), so a shortcut does the reading: «Найти образцы Здоровья» for sleep and walking + running
+/// distance (an iPhone alone writes these: time in bed, and the distance the page finds runs in by their pace), and
+/// with an Apple Watch also heart rate variability, resting pulse and running speed; this action takes their values
+/// and times. The
 /// shortcut runs by an automation (when the app opens, or every morning); the instructions are in the web app's
 /// Settings → «Здоровье». What comes in waits here until the page has saved it.
 struct ImportHealthIntent: AppIntent {
     static var title: LocalizedStringResource = "Передать данные из «Здоровья»"
-    static var description = IntentDescription("Сон по стадиям, вариабельность пульса, пульс в покое и пробежки — в Gym Tracker. Каждое поле — результат «Найти образцы Здоровья» и его свойство: значение, дата начала или окончания.")
+    static var description = IntentDescription("Сон и пробежки, а с Apple Watch ещё стадии сна, вариабельность пульса и пульс в покое — в Gym Tracker. Каждое поле — результат «Найти образцы Здоровья» и его свойство: значение, дата начала или окончания.")
     static var openAppWhenRun: Bool = false
 
     @Parameter(title: "Сон — значения", description: "Анализ сна → Значение")
@@ -31,6 +33,8 @@ struct ImportHealthIntent: AppIntent {
     var distValues: [Double]?
     @Parameter(title: "Расстояние — время", description: "Ходьба и бег → Дата начала")
     var distTimes: [Date]?
+    @Parameter(title: "Расстояние — конец", description: "Ходьба и бег → Дата окончания")
+    var distEnds: [Date]?
 
     static var parameterSummary: some ParameterSummary {
         Summary("Передать в Gym Tracker") {
@@ -44,6 +48,7 @@ struct ImportHealthIntent: AppIntent {
             \.$runTimes
             \.$distValues
             \.$distTimes
+            \.$distEnds
         }
     }
 
@@ -67,7 +72,8 @@ struct ImportHealthIntent: AppIntent {
             item["run"] = run
         }
         if let values = distValues, let times = distTimes {
-            let dist: [String: Any] = ["v": values, "t": times.map(ms)]
+            var dist: [String: Any] = ["v": values, "t": times.map(ms)]
+            if let ends = distEnds { dist["e"] = ends.map(ms) }
             item["dist"] = dist
         }
         HealthInbox.add(item)
