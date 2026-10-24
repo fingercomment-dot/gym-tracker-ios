@@ -326,6 +326,12 @@ struct NVPlainRow: View {
                         .font(row.flag("hd") ? Font.title2.weight(.bold) : row.flag("bold") ? Font.headline : row.flag("small") ? Font.subheadline : Font.body)
                         .foregroundStyle(titleColor)
                         .monospacedDigit()
+                    // how far along (a muscle's recovery): a bar under the title
+                    if let meter = row.node("meter") {
+                        ProgressView(value: min(max(meter.number("f") ?? 0, 0), 1))
+                            .tint(NVTone.color(meter.str("tone"), accent: model.accent, otherwise: model.accent))
+                            .padding(.vertical, 3)
+                    }
                     if let sub = row.str("s") {
                         Text(sub)
                             .font(.subheadline)

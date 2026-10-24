@@ -78,7 +78,12 @@ enum DemoPage {
     }
     /* a step of the workout, the summary: the app draws what the web app sends for them (captured) */
     const STEP_NEXT = { intro: 'set', set: 'rest', rest: 'trans', trans: 'set' };
-    const sendStage = () => N.postMessage({ type: 'nv', tab: 'stage', screen: W.stage ? NVS.stage[W.stage].screen : null, mode: W.stage ? NVS.stage[W.stage].mode : null });
+    /* the captured rest timer and the workout's clock start now, as they would in a real workout */
+    const fresh = sc => { if (!sc) return null; const c = JSON.parse(JSON.stringify(sc)); const now = Date.now();
+      (c.right || []).forEach(i => { if (i.k === 'clock') i.since = W.startedAt; });
+      (c.secs || []).forEach(sec => sec.rows.forEach(r => { if (r.k === 'ring') r.start = now - 25000; if (r.k === 'timer') r.since = now - 8000; }));
+      return c; };
+    const sendStage = () => N.postMessage({ type: 'nv', tab: 'stage', screen: W.stage ? fresh(NVS.stage[W.stage].screen) : null, mode: W.stage ? NVS.stage[W.stage].mode : null });
     const sendWorkout = () => {
       if (W.on) W.started = true;
       sendStage();

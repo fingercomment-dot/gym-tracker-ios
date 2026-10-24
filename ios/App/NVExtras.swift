@@ -164,6 +164,8 @@ private struct NVLineChart: View {
     let row: NVNode
     let accent: Color
     @State private var selected: Date?
+    /// The page's language (dates on the axis like «27.09», whatever the phone's region).
+    @Environment(\.locale) private var locale
 
     var body: some View {
         let series = row.list("series")
@@ -233,7 +235,7 @@ private struct NVLineChart: View {
         .chartXAxis {
             AxisMarks(values: .automatic(desiredCount: 3)) { _ in
                 AxisGridLine()
-                AxisValueLabel(format: .dateTime.day().month(.twoDigits))
+                AxisValueLabel(format: Date.FormatStyle.dateTime.day().month(.twoDigits).locale(locale))
             }
         }
         .opacity(ghost ? 0.45 : 1)
