@@ -389,10 +389,10 @@ final class GymTrackerUITests: XCTestCase {
         let send = app.buttons["Отправить Claude"].firstMatch
         if send.waitForExistence(timeout: 3) {
             tapFrame(send)
-            XCTAssertTrue(app.otherElements["toast"].waitForExistence(timeout: 3), "the page's note did not come up")
+            XCTAssertTrue(app.descendants(matching: .any)["toast"].waitForExistence(timeout: 3), "the page's note did not come up")
             shot("84c-summary-toast")
-            sleep(3)
         }
+        // «Готово» is under the capsule now: the tap has to go through it
         let done = app.navigationBars["Итоги"].buttons["Готово"]
         if done.exists { tapFrame(done) } else { XCTFail("no «Готово» on the summary") }
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 6), "the tabs did not come back after the summary")

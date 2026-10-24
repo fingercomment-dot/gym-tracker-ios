@@ -47,6 +47,8 @@ final class ToastHUD {
         blur.accessibilityIdentifier = "toast"
         blur.isAccessibilityElement = true
         blur.accessibilityLabel = text
+        // touches go through to what's under it (the bar's «Готово»), like the system's own pills
+        blur.isUserInteractionEnabled = false
         window.layoutIfNeeded()
         blur.layer.cornerRadius = min(blur.bounds.height / 2, 26)
         current = blur
@@ -58,11 +60,16 @@ final class ToastHUD {
             blur.alpha = 1
             blur.transform = .identity
         }
-        UIView.animate(withDuration: 0.3, delay: 2.4, options: [.curveEaseIn]) {
-            blur.alpha = 0
-            blur.transform = CGAffineTransform(translationX: 0, y: -16)
-        } completion: { _ in
-            blur.removeFromSuperview()
+        // the fade-out starts later on its own: an animation with a delay would set alpha 0 right away,
+        // and the capsule would be gone for VoiceOver while it is still on the screen
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.4) { [weak blur] in
+            guard let blur, blur.superview != nil else { return }
+            UIView.animate(withDuration: 0.3, delay: 0, options: [.curveEaseIn]) {
+                blur.alpha = 0
+                blur.transform = CGAffineTransform(translationX: 0, y: -16)
+            } completion: { _ in
+                blur.removeFromSuperview()
+            }
         }
     }
 }
