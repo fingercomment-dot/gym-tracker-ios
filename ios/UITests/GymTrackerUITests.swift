@@ -69,8 +69,10 @@ final class GymTrackerUITests: XCTestCase {
             XCTFail("no fold on the exercises' section")
         }
 
-        // «Изменить»: the iPhone's handles; drag the first exercise below the next one
-        app.swipeUp()
+        // «Изменить»: the iPhone's handles; drag the first exercise below the next one.
+        // A slow drag scrolls by a known amount (a swipe may fling «Изменить» under the bar).
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8))
+            .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.52)), withVelocity: .slow, thenHoldForDuration: 0.3)
         sleep(1)
         let edit = app.buttons["nv.edit.s:plan"]
         let nextExercise = app.buttons["nv.row.s:plan/ex:A2"]
