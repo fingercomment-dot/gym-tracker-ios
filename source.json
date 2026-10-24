@@ -19,6 +19,15 @@
       "screenshotURLs": [],
       "versions": [
         {
+          "version": "1.0.27",
+          "buildVersion": "27",
+          "date": "2026-10-24T07:25:14Z",
+          "localizedDescription": "Окно, которое страница закрыла, не остаётся на экране: если iPhone пропустил закрытие, оно закрывается ещё раз",
+          "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.27/GymTracker.ipa",
+          "size": 1289478,
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.0.26",
           "buildVersion": "26",
           "date": "2026-10-24T07:01:55Z",
@@ -98,26 +107,17 @@
           "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.18/GymTracker.ipa",
           "size": 1184337,
           "minOSVersion": "17.0"
-        },
-        {
-          "version": "1.0.17",
-          "buildVersion": "17",
-          "date": "2026-10-23T14:13:21Z",
-          "localizedDescription": "Кнопка внизу окна нажимается, надписи на двух кнопках помещаются",
-          "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.17/GymTracker.ipa",
-          "size": 1173228,
-          "minOSVersion": "17.0"
         }
       ],
       "appPermissions": {
         "entitlements": [],
         "privacy": {}
       },
-      "version": "1.0.26",
-      "versionDate": "2026-10-24T07:01:55Z",
-      "versionDescription": "CI: что упало — заметками в проверке; запись экрана грузится отдельно, пустые файлы не мешают снимкам",
-      "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.26/GymTracker.ipa",
-      "size": 1289570
+      "version": "1.0.27",
+      "versionDate": "2026-10-24T07:25:14Z",
+      "versionDescription": "Окно, которое страница закрыла, не остаётся на экране: если iPhone пропустил закрытие, оно закрывается ещё раз",
+      "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.27/GymTracker.ipa",
+      "size": 1289478
     }
   ],
   "news": []
