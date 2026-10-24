@@ -51,12 +51,25 @@ struct ImportHealthIntent: AppIntent {
         let ms: (Date) -> Double = { ($0.timeIntervalSince1970 * 1000).rounded() }
         var item: [String: Any] = ["id": UUID().uuidString, "at": ms(Date())]
         if let values = sleepValues, let starts = sleepStarts, let ends = sleepEnds {
-            item["sleep"] = ["v": values, "s": starts.map(ms), "e": ends.map(ms)]
+            let sleep: [String: Any] = ["v": values, "s": starts.map(ms), "e": ends.map(ms)]
+            item["sleep"] = sleep
         }
-        if let values = hrvValues, let times = hrvTimes { item["hrv"] = ["v": values, "t": times.map(ms)] }
-        if let values = restValues, let times = restTimes { item["rest"] = ["v": values, "t": times.map(ms)] }
-        if let times = runTimes { item["run"] = ["t": times.map(ms)] }
-        if let values = distValues, let times = distTimes { item["dist"] = ["v": values, "t": times.map(ms)] }
+        if let values = hrvValues, let times = hrvTimes {
+            let hrv: [String: Any] = ["v": values, "t": times.map(ms)]
+            item["hrv"] = hrv
+        }
+        if let values = restValues, let times = restTimes {
+            let rest: [String: Any] = ["v": values, "t": times.map(ms)]
+            item["rest"] = rest
+        }
+        if let times = runTimes {
+            let run: [String: Any] = ["t": times.map(ms)]
+            item["run"] = run
+        }
+        if let values = distValues, let times = distTimes {
+            let dist: [String: Any] = ["v": values, "t": times.map(ms)]
+            item["dist"] = dist
+        }
         HealthInbox.add(item)
         await MainActor.run { NotificationCenter.default.post(name: HealthInbox.arrived, object: nil) }
         return .result()

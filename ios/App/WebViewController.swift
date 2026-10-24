@@ -82,12 +82,15 @@ final class WebViewController: UIViewController {
         }
         // the simulator check: a batch as the shortcut would bring it
         if ProcessInfo.processInfo.arguments.contains("-GymHealthDemo") {
-            let now = Date().timeIntervalSince1970 * 1000
+            let now: Double = Date().timeIntervalSince1970 * 1000
+            let hour: Double = 3_600_000
+            let stages: [String] = ["Основной сон", "Глубокий сон", "Быстрый сон"]
+            let starts: [Double] = [now - 8 * hour, now - 6 * hour, now - 5 * hour]
+            let ends: [Double] = [now - 6 * hour, now - 5 * hour, now - 4 * hour]
+            let sleep: [String: Any] = ["v": stages, "s": starts, "e": ends]
+            let item: [String: Any] = ["id": "demo", "at": now, "sleep": sleep]
             HealthInbox.remove(ids: ["demo"])
-            HealthInbox.add(["id": "demo", "at": now,
-                             "sleep": ["v": ["Основной сон", "Глубокий сон", "Быстрый сон"],
-                                       "s": [now - 8 * 3_600_000, now - 6 * 3_600_000, now - 5 * 3_600_000],
-                                       "e": [now - 6 * 3_600_000, now - 5 * 3_600_000, now - 4 * 3_600_000]]])
+            HealthInbox.add(item)
         }
 
         let config = WKWebViewConfiguration()
