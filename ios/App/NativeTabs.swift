@@ -27,6 +27,14 @@ final class NativeTabs: NSObject, UITabBarControllerDelegate {
     private var models: [String: NVTabModel] = [:]
     let mini = MiniModel()
     private var miniView: UIView?
+    /// The page (for a picture of it while it draws a tab).
+    weak var pageView: UIView?
+    /// A picture of the screen held over a tab switch until the new tab is on the screen: the page needs a moment to
+    /// draw a tab of its own (and the app a tab it hasn't been sent yet), and meanwhile the switch should show neither
+    /// an empty nor a stale screen. The page says when it has drawn the tab (`{type: "tabready"}`, page 12.11+).
+    private var cover: UIView?
+    private var coverTab: String?
+    private var coverLimit: DispatchWorkItem?
 
     override init() {
         super.init()
@@ -109,10 +117,66 @@ final class NativeTabs: NSObject, UITabBarControllerDelegate {
         let m = model(tab)
         m.update(screen: screen, root: root)
         slots[tab]?.showScreen(m.isShown)
+        if screen != nil, tab == coverTab { dropCoverSoon() }
+    }
+
+    /// The page has drawn the tab the person switched to.
+    func tabReady(_ tab: String?) {
+        guard let tab, tab == coverTab else { return }
+        dropCoverSoon()
+    }
+
+    private func holdPicture(until tab: String) {
+        dropCover(animated: false)
+        let current = controller.selectedViewController as? TabSlot
+        guard let source = (current?.hasScreen ?? false) ? current?.view : pageView,
+              source.window != nil,
+              let picture = source.snapshotView(afterScreenUpdates: false) else { return }
+        picture.frame = source.convert(source.bounds, to: controller.view)
+        picture.isUserInteractionEnabled = false
+        picture.accessibilityIdentifier = "tab.cover"
+        // under the bar (it shows the new tab right away), over the tabs' screens; if the bar shares its layer
+        // with the screens, over everything for that moment
+        var anchor: UIView? = controller.tabBar
+        while let a = anchor, a.superview !== controller.view { anchor = a.superview }
+        if let anchor, let content = controller.selectedViewController?.view, !content.isDescendant(of: anchor) {
+            controller.view.insertSubview(picture, belowSubview: anchor)
+        } else {
+            controller.view.addSubview(picture)
+        }
+        cover = picture
+        coverTab = tab
+        // an older page never says so: the picture goes by itself
+        let limit = DispatchWorkItem { [weak self] in self?.dropCover(animated: true) }
+        coverLimit = limit
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7, execute: limit)
+    }
+
+    /// A frame or two later: an app screen just made has been drawn by then.
+    private func dropCoverSoon() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) { [weak self] in self?.dropCover(animated: true) }
+    }
+
+    private func dropCover(animated: Bool) {
+        coverLimit?.cancel()
+        coverLimit = nil
+        guard let picture = cover else { return }
+        cover = nil
+        coverTab = nil
+        if animated {
+            UIView.animate(withDuration: 0.12, delay: 0, options: [.curveEaseOut]) {
+                picture.alpha = 0
+            } completion: { _ in
+                picture.removeFromSuperview()
+            }
+        } else {
+            picture.removeFromSuperview()
+        }
     }
 
     /// A new page or Claude's page around the app: the app's own screens go away.
     func reset() {
+        dropCover(animated: false)
         for (tab, m) in models {
             m.update(screen: nil, root: nil)
             slots[tab]?.showScreen(false)
@@ -155,6 +219,14 @@ final class NativeTabs: NSObject, UITabBarControllerDelegate {
             controller.setBottomAccessory(nil, animated: true)
             miniView = nil
         }
+    }
+
+    func tabBarController(_ tabBarController: UITabBarController, shouldSelect viewController: UIViewController) -> Bool {
+        if let index = tabBarController.viewControllers?.firstIndex(of: viewController), ids.indices.contains(index),
+           index != tabBarController.selectedIndex, let slot = viewController as? TabSlot, !slot.hasScreen {
+            holdPicture(until: ids[index])
+        }
+        return true
     }
 
     func tabBarController(_ tabBarController: UITabBarController, didSelect viewController: UIViewController) {

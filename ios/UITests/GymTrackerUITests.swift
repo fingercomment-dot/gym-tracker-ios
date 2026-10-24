@@ -408,6 +408,49 @@ final class GymTrackerUITests: XCTestCase {
         XCTAssertEqual(app.state, .runningForeground, "the app is not running at the end")
     }
 
+    /// The web app 12.11 («60/40»): Today and Progress are the page's own, Calendar and Settings the app's. A switch
+    /// never shows an empty screen (the app holds a picture of the old one until the page says the new one is drawn);
+    /// the workout list slides over the page's Today and away from it. CI records the screen during this test.
+    func test4SplitTabs() {
+        app.terminate()
+        app.launchArguments = ["-GymDemo", "-GymSplit"]
+        app.launch()
+        XCTAssertTrue(web.waitForExistence(timeout: 40), "no web view")
+        XCTAssertTrue(web.staticTexts["Сегодня"].waitForExistence(timeout: 30), "the page's Today did not load")
+        let tabBar = app.tabBars.firstMatch
+        XCTAssertTrue(tabBar.waitForExistence(timeout: 5), "no tab bar")
+        sleep(2)
+        shot("90-split-today")
+        let cover = app.descendants(matching: .any)["tab.cover"]
+        func go(_ tab: String, until: XCUIElement, _ name: String) {
+            tabBar.buttons[tab].tap()
+            XCTAssertTrue(until.waitForExistence(timeout: 6), "\(tab) did not come up")
+            sleep(2)
+            XCTAssertFalse(cover.exists, "the picture over the switch to \(tab) stayed")
+            shot(name)
+        }
+        go("Календарь", until: app.navigationBars["Календарь"], "91-split-calendar")
+        go("Сегодня", until: web.staticTexts["Сегодня"], "92-split-today-again")
+        go("Прогресс", until: web.staticTexts["Тренировок за 4 недели"], "93-split-progress")
+        go("Настройки", until: app.navigationBars["Настройки"], "94-split-settings")
+        go("Календарь", until: app.navigationBars["Календарь"], "95-split-calendar-again")
+        go("Прогресс", until: web.staticTexts["Тренировок за 4 недели"], "96-split-progress-again")
+        go("Сегодня", until: web.staticTexts["Сегодня"], "97-split-today-third")
+
+        // the workout list over the page's Today, then away
+        let start = web.buttons["Тренировка"]
+        XCTAssertTrue(start.waitForExistence(timeout: 5), "no start button on the page's Today")
+        start.tap()
+        XCTAssertTrue(app.navigationBars["Верх A"].waitForExistence(timeout: 6), "the workout list did not come up")
+        sleep(2)
+        shot("98-split-workout")
+        tapFrame(app.buttons["workout.minimize"].firstMatch)
+        sleep(2)
+        XCTAssertTrue(web.staticTexts["Сегодня"].exists, "the page's Today is not under the list")
+        shot("99-split-after-workout")
+        XCTAssertEqual(app.state, .runningForeground, "the app is not running at the end")
+    }
+
     /// The wheels' panel and the press-and-hold menu on the page (Calendar: the page's own tab).
     func test2WheelsAndMenu() {
         waitForPage()

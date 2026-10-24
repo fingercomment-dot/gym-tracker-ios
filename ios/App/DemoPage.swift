@@ -6,6 +6,9 @@ import Foundation
 /// a button with a press-and-hold menu — so the checks can use them in the simulator and take pictures. Nobody sees
 /// it in normal use.
 enum DemoPage {
+    /// -GymSplit: the page's own Today and Progress, the app's Calendar and Settings (as the web app 12.11 does it).
+    static var split: Bool { ProcessInfo.processInfo.arguments.contains("-GymSplit") }
+
     static let html = #"""
     <!doctype html>
     <html><head><meta charset="utf-8">
@@ -30,10 +33,21 @@ enum DemoPage {
     #back{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none}
     #sheet{position:fixed;left:0;right:0;bottom:0;height:55%;background:#262626;border-radius:12px 12px 0 0;display:none;padding:16px;box-sizing:border-box}
     #sheet h2{margin:8px 0 12px;font-size:20px}
+    .tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .tile{background:#2A2A2A;border-radius:16px;padding:12px 14px}
+    .tile b{display:block;font:700 27px -apple-system}
+    .tile span{color:#A3A3A3;font-size:13px}
     </style></head>
     <body>
     <div id="page">
     <h1 id="tabtitle">Сегодня</h1>
+    <div id="prog" hidden><div class="tiles">
+      <div class="tile"><span>Тренировок за 4 недели</span><b>3</b><span>цель — 12</span></div>
+      <div class="tile"><span>Рекордов за 4 недели</span><b>0</b><span>появятся с прогрессом</span></div>
+      <div class="tile"><span>Сила за 4 недели</span><b>+24,3%</b><span>макс. на раз</span></div>
+      <div class="tile"><span>Средняя длительность</span><b>1 ч 26 мин</b><span>за 4 недели</span></div>
+    </div></div>
+    <div id="todaypart">
     <div class="card">
       <div class="row"><span class="n">1</span><button class="chip" id="w" aria-label="Вес">30 кг</button><span>×</span><button class="chip r" id="r" aria-label="Повторы">8 раз</button></div>
       <div class="row"><span class="n">2</span><button class="chip" id="t" aria-label="Время">27 мин 30 с</button></div>
@@ -41,13 +55,17 @@ enum DemoPage {
     <div class="btns"><button class="btn main" id="go" aria-label="Тренировка">Тренировка</button><button class="btn gray" id="hold" aria-label="Запланировать">Запланировать</button></div>
     <div id="log">—</div>
     </div>
+    </div>
     <div id="back"></div>
     <div id="sheet"><h2>Как выполнять</h2><p>Окно страницы поверх списка приложения.</p><button class="btn gray" id="close" aria-label="Закрыть окно">Закрыть</button></div>
     <script>
     const N = window.webkit.messageHandlers.gymNative;
+    /* -GymSplit: like the web app 12.11 — Today and Progress are the page's own, Calendar and Settings the app's; the
+       page stays visible under the app's screens and says when it has drawn a tab (tabready) */
+    const SPLIT = \#(DemoPage.split ? "true" : "false");
     const log = document.getElementById('log');
     const TABS = [['today', 'Сегодня', 'dumbbell.fill'], ['calendar', 'Календарь', 'calendar'], ['progress', 'Прогресс', 'chart.bar.fill'], ['more', 'Настройки', 'gearshape.fill']];
-    let tab = 'calendar';
+    let tab = SPLIT ? 'today' : 'calendar';
     const tabs = show => N.postMessage({ type: 'tabs', show: show, tab: tab, items: TABS.map(t => ({ id: t[0], title: t[1], sf: t[2] })) });
 
     /* a workout like the real one: pull-ups, bench, a superset */
@@ -99,9 +117,19 @@ enum DemoPage {
     let moreSub = null;
     /* Calendar stays the page's own (the wheels and the menu checks use it) until Today has been opened */
     let calNative = false;
-    const nativeTab = () => !W.on && (tab === 'today' || tab === 'more' || tab === 'progress' || (tab === 'calendar' && calNative));
+    const nativeTab = () => !W.on && (SPLIT ? (tab === 'calendar' || tab === 'more') : (tab === 'today' || tab === 'more' || tab === 'progress' || (tab === 'calendar' && calNative)));
+    let sheetUp = false;
+    function pageTab() {
+      document.getElementById('tabtitle').textContent = TABS.find(t => t[0] === tab)[1];
+      document.getElementById('prog').hidden = tab !== 'progress';
+      document.getElementById('todaypart').hidden = SPLIT && tab === 'progress';
+    }
     function nvSend() {
-      document.documentElement.classList.toggle('nunder', W.on || nativeTab());
+      if (SPLIT) {
+        document.documentElement.classList.toggle('nunder', W.on && sheetUp);
+        if (tab === 'today' || tab === 'progress') { N.postMessage({ type: 'nv', tab: tab, screen: null, root: null }); return; }
+        if (tab === 'calendar') { N.postMessage({ type: 'nv', tab: 'calendar', screen: NVS.calendar, root: null }); return; }
+      } else document.documentElement.classList.toggle('nunder', W.on || nativeTab());
       if (tab === 'today') N.postMessage({ type: 'nv', tab: 'today', screen: NVS.today, root: null });
       if (tab === 'more') N.postMessage({ type: 'nv', tab: 'more', screen: moreSub ? NVS[moreSub] : NVS.more, root: moreSub ? NVS.more : null });
       if (tab === 'progress') N.postMessage({ type: 'nv', tab: 'progress', screen: NVS.progress, root: null });
@@ -208,14 +236,16 @@ enum DemoPage {
       if (d.a === 'finish') { W.started = false; W.stage = 'sum'; }
       sendWorkout();
     }
-    function openSheet() { document.getElementById('back').style.display = 'block'; document.getElementById('sheet').style.display = 'block'; N.postMessage({ type: 'overlay', on: true }); }
-    function closeSheet() { document.getElementById('back').style.display = 'none'; document.getElementById('sheet').style.display = 'none'; N.postMessage({ type: 'overlay', on: false }); }
+    function openSheet() { sheetUp = true; if (SPLIT && W.on) document.documentElement.classList.add('nunder'); document.getElementById('back').style.display = 'block'; document.getElementById('sheet').style.display = 'block'; N.postMessage({ type: 'overlay', on: true }); }
+    function closeSheet() { sheetUp = false; document.getElementById('back').style.display = 'none'; document.getElementById('sheet').style.display = 'none'; N.postMessage({ type: 'overlay', on: false });
+      if (SPLIT) setTimeout(() => { if (!sheetUp) document.documentElement.classList.remove('nunder'); }, 180); }
     document.getElementById('close').onclick = closeSheet;
     document.getElementById('back').onclick = closeSheet;
     document.getElementById('go').onclick = () => { W.on = true; sendWorkout(); };
 
     window.__gymNative = d => {
-      if (d.type === 'tab') { tab = d.tab; if (tab === 'today') calNative = true; document.getElementById('tabtitle').textContent = TABS.find(t => t[0] === tab)[1]; tabs(true); nvSend(); }
+      if (d.type === 'tab') { tab = d.tab; if (tab === 'today') calNative = true; pageTab(); tabs(true); nvSend();
+        requestAnimationFrame(() => requestAnimationFrame(() => N.postMessage({ type: 'tabready', tab: tab, page: !nativeTab() }))); }
       if (d.type === 'wact') act(d);
       if (d.type === 'nva') { nvAct(d); return true; }
       if (d.type === 'mini' && d.a === 'open') { W.on = true; sendWorkout(); }
@@ -225,7 +255,8 @@ enum DemoPage {
     N.postMessage({ type: 'hello', v: 'demo' });
     N.postMessage({ type: 'look', bg: '#1E1E1E', accent: '#8B6CEF', dark: true, sheet: '#262626', label: '#DADADA', label2: '#A3A3A3', tint: '#A88BFA' });
     tabs(true);
-    document.getElementById('tabtitle').textContent = 'Календарь';
+    pageTab();
+    if (SPLIT) nvSend();
     const range = (a, b, s) => { const r = []; for (let v = a; v <= b + 1e-9; v += s || 1) r.push(+v.toFixed(2)); return r; };
     const reps = range(0, 30);
     const weights = id => N.postMessage({ type: 'picker', id: id, title: 'Жим штанги лёжа', sub: 'Подход 1', done: 'Готово',

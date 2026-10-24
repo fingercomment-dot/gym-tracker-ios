@@ -180,11 +180,31 @@ jobs:
             -destination "id=${{ steps.sim.outputs.udid }}" \
             -derivedDataPath build-test \
             -resultBundlePath ../ui.xcresult \
+            -skip-testing:GymTrackerUITests/GymTrackerUITests/test4SplitTabs \
             CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=YES \
             > ../uitest.log 2>&1
           STATUS=$?
           grep -E "error:|failed|crash|Crash|Test Case|\*\* TEST" ../uitest.log | tail -60
           echo "xcodebuild exit: $STATUS"
+          # the «60/40» check with the simulator's screen recorded: the tab switches are looked at frame by frame
+          xcrun simctl boot "${{ steps.sim.outputs.udid }}" > /dev/null 2>&1 || true
+          xcrun simctl io "${{ steps.sim.outputs.udid }}" recordVideo --codec=h264 --force ../split.mp4 > ../rec.log 2>&1 &
+          REC=$!
+          sleep 3
+          xcodebuild test-without-building \
+            -project GymTracker.xcodeproj \
+            -scheme GymTracker \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath build-test \
+            -resultBundlePath ../ui4.xcresult \
+            -only-testing:GymTrackerUITests/GymTrackerUITests/test4SplitTabs \
+            CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=YES \
+            > ../uitest4.log 2>&1
+          STATUS4=$?
+          kill -INT $REC 2>/dev/null; sleep 4
+          grep -E "error:|failed|crash|Crash|Test Case|\*\* TEST" ../uitest4.log | tail -20
+          echo "split check exit: $STATUS4"
+          if [ "$STATUS" = "0" ]; then STATUS=$STATUS4; fi
           echo "$STATUS" > ../uitest.status
 
       - name: Collect the pictures
@@ -192,12 +212,14 @@ jobs:
         run: |
           mkdir -p shots
           xcrun xcresulttool export attachments --path ui.xcresult --output-path shots-raw > /dev/null 2>&1 || true
+          xcrun xcresulttool export attachments --path ui4.xcresult --output-path shots-raw4 > /dev/null 2>&1 || true
           python3 - <<'PY'
           import json, os, shutil
-          raw = "shots-raw"
-          man = os.path.join(raw, "manifest.json")
           n = 0
-          if os.path.exists(man):
+          for raw in ("shots-raw", "shots-raw4"):
+              man = os.path.join(raw, "manifest.json")
+              if not os.path.exists(man):
+                  continue
               for test in json.load(open(man)):
                   for a in test.get("attachments", []):
                       src = os.path.join(raw, a.get("exportedFileName", ""))
@@ -209,7 +231,11 @@ jobs:
           print("pictures:", n)
           PY
           xcrun xcresulttool get test-results tests --path ui.xcresult > shots/test-results.json 2>/dev/null || true
+          xcrun xcresulttool get test-results tests --path ui4.xcresult > shots/test-results4.json 2>/dev/null || true
           cp uitest.log shots/uitest.log 2>/dev/null || true
+          cp uitest4.log shots/uitest4.log 2>/dev/null || true
+          cp split.mp4 shots/split.mp4 2>/dev/null || true
+          cp rec.log shots/rec.log 2>/dev/null || true
           find ~/Library/Logs/DiagnosticReports -name "GymTracker*" -mmin -60 -exec cp {} shots/ \; 2>/dev/null || true
           ls -la shots
 

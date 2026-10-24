@@ -103,6 +103,7 @@ final class WebViewController: UIViewController {
         web.addInteraction(UIContextMenuInteraction(delegate: self))
 
         nativeTabs.install(in: self, above: web)
+        nativeTabs.pageView = web
         nativeTabs.onSelect = { [weak self] tab in self?.sendToApp(["type": "tab", "tab": tab]) }
         nativeTabs.send = { [weak self] message in self?.sendToApp(message) }
         nvSheets.host = self
@@ -320,7 +321,8 @@ final class WebViewController: UIViewController {
     }
 
     private func updateWorkoutHost() {
-        let want = workoutShown || stageModel.isShown
+        // a step is pushed over the list, so it goes with the list; a summary of its own (page 12.10) stands alone
+        let want = workoutShown || (stageModel.isShown && stageMode == "root")
         if want {
             guard workoutHost == nil else { return }
             let host = UIHostingController(rootView: WorkoutScreen(model: workoutModel, stage: stageModel))
@@ -347,12 +349,30 @@ final class WebViewController: UIViewController {
             workoutHost = nil
             view.sendSubviewToBack(webView)
             setPageSeeThrough(false)
-            UIView.animate(withDuration: 0.3, delay: 0, options: [.curveEaseIn]) {
-                host.view.transform = CGAffineTransform(translationX: 0, y: self.view.bounds.height)
-            } completion: { _ in
+            // it slides away as a picture of what it showed last: the page changes its models right after (the step
+            // goes, the list empties), and the live screen would show that on the way out
+            let leaving: UIView
+            if let picture = host.view.snapshotView(afterScreenUpdates: false) {
+                picture.frame = host.view.frame
+                picture.isUserInteractionEnabled = false
+                view.insertSubview(picture, aboveSubview: host.view)
                 host.willMove(toParent: nil)
                 host.view.removeFromSuperview()
                 host.removeFromParent()
+                leaving = picture
+            } else {
+                leaving = host.view
+            }
+            UIView.animate(withDuration: 0.3, delay: 0, options: [.curveEaseIn]) {
+                leaving.transform = CGAffineTransform(translationX: 0, y: self.view.bounds.height)
+            } completion: { _ in
+                if leaving === host.view {
+                    host.willMove(toParent: nil)
+                    host.view.removeFromSuperview()
+                    host.removeFromParent()
+                } else {
+                    leaving.removeFromSuperview()
+                }
             }
         }
     }
@@ -691,6 +711,8 @@ extension WebViewController: WKScriptMessageHandler {
             } else {
                 nativeTabs.setScreen(tab: body["tab"] as? String ?? "", screen: body["screen"] as? [String: Any], root: body["root"] as? [String: Any])
             }
+        case "tabready":
+            nativeTabs.tabReady(body["tab"] as? String)
         case "toast":
             ToastHUD.show(body["t"] as? String ?? "", symbol: body["sf"] as? String ?? "checkmark", in: view.window, dark: pageDark)
         case "nvs":
