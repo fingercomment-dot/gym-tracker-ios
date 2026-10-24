@@ -275,6 +275,122 @@ final class GymTrackerUITests: XCTestCase {
         XCTAssertEqual(app.state, .runningForeground, "the app is not running at the end")
     }
 
+    /// The exercise card, the workout's steps and the summary, drawn by the app from the web app's description.
+    func test3CardStepsSummary() {
+        waitForPage()
+        app.tabBars.firstMatch.buttons["Сегодня"].tap()
+        XCTAssertTrue(app.navigationBars["Сегодня"].waitForExistence(timeout: 8), "Today drawn by the app did not come up")
+        sleep(1)
+
+        // the exercise card: the photos, the technique; its history and settings tabs
+        let exercise = app.buttons["nv.row.s:plan/ex:A1"]
+        if exercise.waitForExistence(timeout: 4) {
+            exercise.tap()
+            XCTAssertTrue(app.segmentedControls.buttons["Растяжение"].waitForExistence(timeout: 6), "the exercise card's photos did not come up")
+            sleep(2)
+            shot("70-card-technique")
+            app.swipeUp()
+            sleep(1)
+            shot("70b-card-technique-more")
+            app.swipeDown()
+            sleep(1)
+            let history = app.segmentedControls.buttons["История"]
+            if history.waitForExistence(timeout: 3) {
+                history.tap()
+                sleep(2)
+                shot("71-card-history")
+            } else {
+                XCTFail("no history tab in the exercise card")
+            }
+            let settings = app.segmentedControls.buttons["Настройки"]
+            if settings.waitForExistence(timeout: 3) {
+                settings.tap()
+                sleep(2)
+                shot("72-card-settings")
+            }
+            let close = app.navigationBars.buttons["Закрыть"].firstMatch
+            if close.exists { tapFrame(close) } else { app.swipeDown(velocity: .fast) }
+            sleep(2)
+        } else {
+            XCTFail("no exercise row on Today")
+        }
+
+        // a workout: the readiness sheet's button starts it
+        let start = app.buttons["nv.btn.s:hero/Начать тренировку"]
+        if start.waitForExistence(timeout: 3) {
+            start.tap()
+            let go = app.buttons["nv.btn.foot0"]
+            if go.waitForExistence(timeout: 5) { go.tap() } else { XCTFail("no start button in the readiness sheet") }
+        }
+        let list = app.navigationBars["Верх A"]
+        XCTAssertTrue(list.waitForExistence(timeout: 6), "the workout list did not come up")
+        sleep(1)
+
+        // «Ещё» → «Разминка, замена, заметки»: the exercise's step screen, pushed over the list
+        let more = app.buttons["more.0"]
+        if more.waitForExistence(timeout: 3) {
+            more.tap()
+            let old = element(beginningWith: "Разминка, замена")
+            if old.waitForExistence(timeout: 3) { old.tap() } else { XCTFail("no «Разминка, замена, заметки» in the menu") }
+        } else {
+            XCTFail("no «Ещё» menu on the first exercise")
+        }
+        XCTAssertTrue(app.navigationBars["Упражнение"].waitForExistence(timeout: 6), "the exercise's step screen did not come up")
+        sleep(1)
+        shot("80-step-intro")
+        app.swipeUp()
+        sleep(1)
+        shot("80b-step-intro-more")
+
+        // the main button at the bottom: the set, then the rest with its ring and wheels, then a superset's «straight on»
+        let main = app.buttons["nv.btn.foot0"]
+        if main.waitForExistence(timeout: 3) { tapFrame(main) }
+        XCTAssertTrue(app.navigationBars["Подход"].waitForExistence(timeout: 5), "the set screen did not come up")
+        sleep(1)
+        shot("81-step-set")
+        if main.waitForExistence(timeout: 3) { tapFrame(main) }
+        XCTAssertTrue(app.navigationBars["Отдых"].waitForExistence(timeout: 5), "the rest screen did not come up")
+        sleep(2)
+        shot("82-step-rest")
+        if app.pickerWheels.count > 0 {
+            app.pickerWheels.element(boundBy: app.pickerWheels.count - 1).swipeDown()
+            sleep(2)
+            shot("82b-step-rest-wheels")
+        }
+        if main.waitForExistence(timeout: 3) { tapFrame(main) }
+        XCTAssertTrue(app.navigationBars["Суперсет"].waitForExistence(timeout: 5), "the superset screen did not come up")
+        sleep(1)
+        shot("83-step-superset")
+
+        // back to the list with the back button
+        let back = app.navigationBars["Суперсет"].buttons.firstMatch
+        if back.exists { tapFrame(back) }
+        XCTAssertTrue(list.waitForExistence(timeout: 5), "back did not return to the workout list")
+        sleep(1)
+
+        // finish → the summary, then «Готово»
+        app.swipeUp()
+        let finish = app.buttons["workout.finish"]
+        if finish.waitForExistence(timeout: 3) {
+            finish.tap()
+            sleep(1)
+            let ok = app.buttons["Завершить"]
+            if ok.waitForExistence(timeout: 3) { ok.tap() } else { XCTFail("no «Завершить» in the question") }
+        }
+        XCTAssertTrue(app.navigationBars["Итоги"].waitForExistence(timeout: 6), "the summary did not come up")
+        sleep(2)
+        shot("84-summary")
+        app.swipeUp()
+        sleep(1)
+        shot("84b-summary-more")
+        let done = app.navigationBars["Итоги"].buttons["Готово"]
+        if done.exists { tapFrame(done) } else { XCTFail("no «Готово» on the summary") }
+        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 6), "the tabs did not come back after the summary")
+        sleep(1)
+        shot("85-after-summary")
+        XCTAssertEqual(app.state, .runningForeground, "the app is not running at the end")
+    }
+
     /// The wheels' panel and the press-and-hold menu on the page (Calendar: the page's own tab).
     func test2WheelsAndMenu() {
         waitForPage()

@@ -46,6 +46,10 @@ final class WebViewController: UIViewController {
     private let workoutModel = WorkoutModel()
     /// The page's sheets drawn as the iPhone's own.
     private let nvSheets = NVSheets()
+    /// The workout's other screens the page describes (a step, the summary, an idle workout).
+    private let stageModel = NVTabModel(tab: "stage")
+    private var workoutShown = false
+    private var stageMode: String?
     private var workoutHost: UIHostingController<WorkoutScreen>?
     private var sentTabBarHeight: CGFloat = -1
 
@@ -104,6 +108,7 @@ final class WebViewController: UIViewController {
         nvSheets.host = self
         nvSheets.send = { [weak self] message in self?.sendToApp(message) }
         workoutModel.send = { [weak self] message in self?.sendToApp(message) }
+        stageModel.send = { [weak self] message in self?.sendToApp(message) }
 
         topSafe = web.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor)
         topFull = web.topAnchor.constraint(equalTo: view.topAnchor)
@@ -198,7 +203,7 @@ final class WebViewController: UIViewController {
                 self.nativeTabs.apply(["show": false])
                 self.nativeTabs.reset()
                 self.nvSheets.reset()
-                self.showWorkout(["show": false])
+                self.resetWorkoutScreens()
             }
             if !nowOn { self.setFullScreen(false) }
             self.webView.scrollView.bounces = !nowOn
@@ -241,6 +246,7 @@ final class WebViewController: UIViewController {
         pageDark = (body["dark"] as? Bool) ?? (color.luminance < 0.5)
         if let accent = (body["accent"] as? String).flatMap({ UIColor(hexString: $0) }) {
             workoutModel.accent = Color(uiColor: accent)
+            stageModel.accent = Color(uiColor: accent)
             nativeTabs.accent = Color(uiColor: accent)
             nvSheets.accent = Color(uiColor: accent)
             nativeTabs.controller.tabBar.tintColor = accent
@@ -283,13 +289,41 @@ final class WebViewController: UIViewController {
     }
 
     /// The workout list drawn by the app (`{type: "workout", show, state}`): slides up over the page, follows every
-    /// change, slides away when the page shows something else (the step-by-step screen, the summary, Today).
+    /// change, slides away when the page shows something else (Today, the page's own screens).
     private func showWorkout(_ body: [String: Any]) {
         let show = (body["show"] as? Bool) ?? false
         if show, let state = body["state"] as? [String: Any] {
             workoutModel.update(state)
+            workoutShown = true
+        } else {
+            workoutShown = false
+        }
+        updateWorkoutHost()
+    }
+
+    /// A step of the workout, the summary or an idle workout drawn by the app (`{type: "nv", tab: "stage", screen,
+    /// mode}`): a step is pushed over the list (back = to the list), the other two stand in its place.
+    private func showStage(_ body: [String: Any]) {
+        let screen = body["screen"] as? [String: Any]
+        let mode = body["mode"] as? String
+        if screen == nil || mode != stageMode { stageModel.update(screen: nil, root: nil) }
+        stageMode = screen == nil ? nil : mode
+        if let screen { stageModel.update(screen: screen, root: nil) }
+        updateWorkoutHost()
+    }
+
+    private func resetWorkoutScreens() {
+        stageModel.update(screen: nil, root: nil)
+        stageMode = nil
+        workoutShown = false
+        updateWorkoutHost()
+    }
+
+    private func updateWorkoutHost() {
+        let want = workoutShown || stageModel.isShown
+        if want {
             guard workoutHost == nil else { return }
-            let host = UIHostingController(rootView: WorkoutScreen(model: workoutModel))
+            let host = UIHostingController(rootView: WorkoutScreen(model: workoutModel, stage: stageModel))
             host.view.backgroundColor = .systemGroupedBackground
             addChild(host)
             host.view.translatesAutoresizingMaskIntoConstraints = false
@@ -622,7 +656,7 @@ extension WebViewController: WKScriptMessageHandler {
                 "insets": focused ? insetsPayload() : NSNull(),
                 "picker": true,
                 "holdZones": true,
-                "ui": ["tabs": true, "workout": true, "nv": 2, "mini": NativeTabs.hasPlayerBar],
+                "ui": ["tabs": true, "workout": true, "nv": 3, "mini": NativeTabs.hasPlayerBar],
             ])
         case "ready":
             if appFrame == nil { appFrame = message.frameInfo }
@@ -652,7 +686,11 @@ extension WebViewController: WKScriptMessageHandler {
         case "overlay":
             setOverlay((body["on"] as? Bool) ?? false)
         case "nv":
-            nativeTabs.setScreen(tab: body["tab"] as? String ?? "", screen: body["screen"] as? [String: Any], root: body["root"] as? [String: Any])
+            if (body["tab"] as? String) == "stage" {
+                showStage(body)
+            } else {
+                nativeTabs.setScreen(tab: body["tab"] as? String ?? "", screen: body["screen"] as? [String: Any], root: body["root"] as? [String: Any])
+            }
         case "nvs":
             nvSheets.apply(body["sheets"] as? [[String: Any]] ?? [])
         case "mini":
@@ -729,7 +767,7 @@ extension WebViewController: WKNavigationDelegate {
         nativeTabs.apply(["show": false])
         nativeTabs.reset()
         nvSheets.reset()
-        showWorkout(["show": false])
+        resetWorkoutScreens()
         setNeedsStatusBarAppearanceUpdate()
         if AppSettings.focusMode, webView.url?.path.contains("/artifact") == true {
             hidePage(for: 8)

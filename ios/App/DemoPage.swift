@@ -76,10 +76,14 @@ enum DemoPage {
         labels: { minimize: 'Свернуть', today: 'Сегодня', warm: 'Разминка', exercises: 'Упражнения', of: ' из ', set: 'Подход', round: 'Круг', addSet: 'Добавить подход', addRound: 'Добавить круг',
           more: 'Ещё', endBlock: 'Закончить упражнение', old: 'Разминка, замена, заметки', info: 'Как выполнять', rest: 'Отдых', noRest: 'Без отдыха', quick: 'Отметить по плану', unquick: 'Снять отметку' } };
     }
+    /* a step of the workout, the summary: the app draws what the web app sends for them (captured) */
+    const STEP_NEXT = { intro: 'set', set: 'rest', rest: 'trans', trans: 'set' };
+    const sendStage = () => N.postMessage({ type: 'nv', tab: 'stage', screen: W.stage ? NVS.stage[W.stage].screen : null, mode: W.stage ? NVS.stage[W.stage].mode : null });
     const sendWorkout = () => {
       if (W.on) W.started = true;
+      sendStage();
       N.postMessage({ type: 'workout', show: W.on, state: W.on ? state() : null });
-      tabs(!W.on);
+      tabs(!W.on && !W.stage);
       N.postMessage(W.started && !W.on ? { type: 'mini', show: true, t: 'Верх A', letter: 'A', c: '#0A84FF', on: '#FFFFFF', startedAt: W.startedAt,
         rest: W.rest ? { start: W.rest.start, end: W.rest.end } : null, label: 'Идёт тренировка · 0 из 3', restT: 'Отдых', overT: 'Отдых закончился', open: 'Открыть тренировку' } : { type: 'mini', show: false });
       nvSend();
@@ -106,6 +110,11 @@ enum DemoPage {
       const i = SH.findIndex(sh => findFn(sh, f, null));
       if (i < 0) return false;
       const sh = SH[i];
+      /* the exercise card: its tabs are the captured tabs of the same sheet */
+      if (sh._excard) {
+        const seg = findFn(sh, f, null);
+        if (seg && seg.node.k === 'seg' && NVS.excard[d.v]) { const c = JSON.parse(JSON.stringify(NVS.excard[d.v])); c.id = sh.id; c._excard = true; SH[i] = c; nvsSend(); return true; }
+      }
       const closeHere = () => { SH = SH.slice(0, i); nvsSend(); };
       if (sh.kind === 'actions') { closeHere(); return true; }
       if (f === sh.close || (sh.left && f === sh.left.fn) || (sh.right && f === sh.right.fn)) { closeHere(); return true; }
@@ -136,6 +145,14 @@ enum DemoPage {
       const f = String(d.fn || '');
       log.textContent = 'nva ' + f + (d.v !== undefined ? ' = ' + JSON.stringify(d.v) : '');
       if (d.tab === 'sheets' || SH.length) { if (sheetAct(f, d)) return; }
+      if (d.tab === 'stage') {
+        const sc = W.stage && NVS.stage[W.stage].screen; if (!sc) return;
+        if (f === sc.back) { W.stage = null; sendStage(); return; }
+        if ((sc.foot || []).some(b => b.fn === f)) { W.stage = STEP_NEXT[W.stage] || null; sendStage(); return; }
+        if ((sc.right || []).some(r => r.fn === f)) { W.stage = null; tab = 'today'; sendWorkout(); return; }
+        return;
+      }
+      if (f.indexOf('s:plan/ex:') >= 0) { const c = JSON.parse(JSON.stringify(NVS.excard.tech)); c._excard = true; SH = SH.concat([c]); nvsSend(); return; }
       if (f.indexOf('q-weight') >= 0) { openNv(NVS.sheets.weight); return; }
       if (f.indexOf('q-sleep') >= 0) { openNv(NVS.sheets.sleep); return; }
       if (f.indexOf('q-cardio') >= 0) { openNv(NVS.sheets.cardio); return; }
@@ -178,8 +195,9 @@ enum DemoPage {
       if (d.a === 'warm') W.warm = !!d.on;
       if (d.a === 'quick' && b) b.items.forEach(x => { x.done = x.sets.length; });
       if (d.a === 'info') openSheet();
-      if (d.a === 'min' || d.a === 'finish') W.on = false;
-      if (d.a === 'finish') W.started = false;
+      if (d.a === 'old') W.stage = 'intro';
+      if (d.a === 'min' || d.a === 'finish') { W.on = false; W.stage = null; }
+      if (d.a === 'finish') { W.started = false; W.stage = 'sum'; }
       sendWorkout();
     }
     function openSheet() { document.getElementById('back').style.display = 'block'; document.getElementById('sheet').style.display = 'block'; N.postMessage({ type: 'overlay', on: true }); }

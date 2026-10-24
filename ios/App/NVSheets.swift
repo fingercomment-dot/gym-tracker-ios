@@ -186,7 +186,7 @@ private struct NVSheetBarButton: View {
 }
 
 /// The sheet's main button pinned at the bottom (iOS 26: in the bar that blurs the list under it).
-private struct NVSheetFoot: ViewModifier {
+struct NVSheetFoot: ViewModifier {
     let buttons: [NVNode]
     @ObservedObject var model: NVTabModel
 

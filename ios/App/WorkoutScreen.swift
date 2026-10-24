@@ -147,15 +147,29 @@ private struct SetKey: Hashable {
 /// set off like in Reminders, the drums right under a set to change it, the rest counting in the navigation bar.
 struct WorkoutScreen: View {
     @ObservedObject var model: WorkoutModel
+    /// The workout's other screens the page describes (drawing 3): a step pushed over the list, or the summary and
+    /// an idle workout in its place.
+    @ObservedObject var stage: NVTabModel
     @State private var editing: SetKey?
     @State private var asking = false
 
     var body: some View {
-        NavigationStack {
-            if let state = model.state {
-                list(state)
-            } else {
-                ProgressView()
+        NavigationStack(path: Binding(get: { stage.path }, set: { stage.setPath($0) })) {
+            Group {
+                if let root = stage.root {
+                    NVScreenView(screen: root, model: stage)
+                } else if let state = model.state {
+                    list(state)
+                } else {
+                    ProgressView()
+                }
+            }
+            .navigationDestination(for: String.self) { _ in
+                if let top = stage.top {
+                    NVScreenView(screen: top, model: stage)
+                } else {
+                    Color(uiColor: .systemGroupedBackground).ignoresSafeArea()
+                }
             }
         }
         .tint(model.accent)
@@ -340,6 +354,7 @@ private struct BlockView: View {
                         .labelStyle(.iconOnly)
                 }
                 .buttonStyle(.borderless)
+                .accessibilityIdentifier("more.\(block.b)")
             }
         } label: {
             HStack(spacing: 12) {

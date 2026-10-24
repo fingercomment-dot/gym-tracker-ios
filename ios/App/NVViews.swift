@@ -42,15 +42,24 @@ struct NVScreenView: View {
         .environment(\.editMode, $editMode)
         .environment(\.locale, Locale(identifier: screen.str("loc") ?? "ru_RU"))
         .navigationTitle(screen.str("title") ?? "")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(screen.flag("inline") ? .inline : .large)
         .modifier(NVSubtitle(text: screen.str("sub")))
         .toolbar {
+            if !screen.list("left").isEmpty {
+                ToolbarItemGroup(placement: .topBarLeading) {
+                    ForEach(screen.list("left")) { item in
+                        NVToolbarButton(item: item, model: model)
+                    }
+                }
+            }
             ToolbarItemGroup(placement: .topBarTrailing) {
                 ForEach(screen.list("right")) { item in
                     NVToolbarButton(item: item, model: model)
                 }
             }
         }
+        // a step's main button: in the bar at the bottom, always in reach
+        .modifier(NVSheetFoot(buttons: screen.list("foot"), model: model))
     }
 }
 
@@ -72,18 +81,26 @@ private struct NVToolbarButton: View {
     @ObservedObject var model: NVTabModel
 
     var body: some View {
-        Button {
-            model.act(item.str("fn"))
-        } label: {
-            if let title = item.str("t") {
-                Label(title, systemImage: item.str("sf") ?? "circle").labelStyle(.titleAndIcon)
-            } else {
-                Image(systemName: item.str("sf") ?? "circle")
+        if item.kind == "clock" {
+            NVClock(since: item.number("since") ?? 0, label: item.str("label") ?? "")
+        } else {
+            Button {
+                model.act(item.str("fn"))
+            } label: {
+                if let title = item.str("t") {
+                    if let sf = item.str("sf") {
+                        Label(title, systemImage: sf).labelStyle(.titleAndIcon)
+                    } else {
+                        Text(title).fontWeight(item.flag("bold") ? .semibold : .regular)
+                    }
+                } else {
+                    Image(systemName: item.str("sf") ?? "circle")
+                }
             }
+            .tint(NVTone.color(item.str("tone"), accent: model.accent, otherwise: model.accent))
+            .accessibilityLabel(item.str("label") ?? item.str("t") ?? "")
+            .accessibilityIdentifier("nv.item." + item.id)
         }
-        .tint(NVTone.color(item.str("tone"), accent: model.accent, otherwise: model.accent))
-        .accessibilityLabel(item.str("label") ?? item.str("t") ?? "")
-        .accessibilityIdentifier("nv.item." + item.id)
     }
 }
 
@@ -220,7 +237,7 @@ struct NVRowView: View {
             case "toggle": NVToggleRow(row: row, model: model)
             case "stepper": NVStepperRow(row: row, model: model)
             case "seg": NVSegRow(row: row, model: model)
-            case "btn": NVButton(btn: row, model: model, full: true).listRowSeparator(.hidden)
+            case "btn": NVButton(btn: row, model: model, full: !row.flag("small")).listRowSeparator(.hidden)
             case "btns": NVButtonsRow(row: row, model: model)
             case "note": NVNoteRow(row: row, model: model)
             case "text": NVTextRow(row: row, plain: plain)
@@ -238,6 +255,11 @@ struct NVRowView: View {
             case "pick": NVPickRow(row: row, model: model)
             case "meter": NVMeterRow(row: row, accent: model.accent)
             case "wheels": NVWheelsRow(row: row, model: model)
+            case "photo": NVPhotoRow(row: row, model: model)
+            case "target": NVTargetRow(row: row, accent: model.accent)
+            case "ring": NVRingRow(row: row, accent: model.accent)
+            case "timer": NVTimerRow(row: row)
+            case "done": NVDoneRow(row: row)
             default: NVPlainRow(row: row, model: model)
             }
         }
@@ -301,7 +323,7 @@ struct NVPlainRow: View {
             } else {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(row.str("t") ?? "")
-                        .font(row.flag("bold") ? .headline : row.flag("small") ? .subheadline : .body)
+                        .font(row.flag("hd") ? Font.title2.weight(.bold) : row.flag("bold") ? Font.headline : row.flag("small") ? Font.subheadline : Font.body)
                         .foregroundStyle(titleColor)
                         .monospacedDigit()
                     if let sub = row.str("s") {
@@ -387,6 +409,12 @@ struct NVLead: View {
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
                 .frame(width: 22)
+        case "tick":
+            // a circle to tick, like in Reminders
+            Image(systemName: lead.flag("on") ? "largecircle.fill.circle" : "circle")
+                .font(.title2)
+                .foregroundStyle(lead.flag("on") ? accent : Color(uiColor: .tertiaryLabel))
+                .contentTransition(.symbolEffect(.replace))
         default:
             EmptyView()
         }
@@ -571,7 +599,7 @@ struct NVButton: View {
                 Button { model.act(btn.str("fn")) } label: { label }
             }
         }
-        .modifier(NVButtonLook(style: btn.str("style")))
+        .modifier(NVButtonLook(style: btn.str("style"), small: btn.flag("small"), red: btn.str("tone") == "bad"))
         .disabled(btn.flag("off"))
         .accessibilityIdentifier("nv.btn." + btn.id)
     }
@@ -579,19 +607,25 @@ struct NVButton: View {
 
 private struct NVButtonLook: ViewModifier {
     let style: String?
+    var small = false
+    /// A plain button that deletes or cancels: red.
+    var red = false
 
     func body(content: Content) -> some View {
+        let size: ControlSize = small ? .small : .large
         switch style {
         case "primary":
-            content.buttonStyle(.borderedProminent).controlSize(.large).buttonBorderShape(.capsule)
+            content.buttonStyle(.borderedProminent).controlSize(size).buttonBorderShape(.capsule)
+        case "plain" where red:
+            content.buttonStyle(.borderless).tint(.red)
         case "plain":
             content.buttonStyle(.borderless)
         case "danger":
-            content.buttonStyle(.bordered).controlSize(.large).buttonBorderShape(.capsule).tint(.red)
+            content.buttonStyle(.bordered).controlSize(size).buttonBorderShape(.capsule).tint(.red)
         case "tinted":
-            content.buttonStyle(.bordered).controlSize(.large).buttonBorderShape(.capsule)
+            content.buttonStyle(.bordered).controlSize(size).buttonBorderShape(.capsule)
         default:
-            content.buttonStyle(.bordered).controlSize(.large).buttonBorderShape(.capsule).foregroundStyle(.primary)
+            content.buttonStyle(.bordered).controlSize(size).buttonBorderShape(.capsule).foregroundStyle(.primary)
         }
     }
 }
@@ -661,7 +695,7 @@ private struct NVTextRow: View {
         let small = row.flag("small")
         Text(row.str("t") ?? "")
             .font(small ? .footnote : .subheadline)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(NVTone.color(row.str("tone"), accent: .accentColor, otherwise: .secondary))
             .multilineTextAlignment(small ? .center : .leading)
             .frame(maxWidth: .infinity, alignment: small ? .center : .leading)
     }
