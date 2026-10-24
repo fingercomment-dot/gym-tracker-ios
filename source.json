@@ -19,6 +19,15 @@
       "screenshotURLs": [],
       "versions": [
         {
+          "version": "1.0.22",
+          "buildVersion": "22",
+          "date": "2026-10-24T02:03:04Z",
+          "localizedDescription": "Короткие подтверждения («Отчёт скопирован…») — плашкой сверху поверх экранов приложения",
+          "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.22/GymTracker.ipa",
+          "size": 1286230,
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.0.21",
           "buildVersion": "21",
           "date": "2026-10-24T01:48:29Z",
@@ -98,26 +107,17 @@
           "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.12/GymTracker.ipa",
           "size": 830916,
           "minOSVersion": "17.0"
-        },
-        {
-          "version": "1.0.11",
-          "buildVersion": "11",
-          "date": "2026-10-23T12:30:16Z",
-          "localizedDescription": "Таймер отдыха в верхней панели не обрезается",
-          "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.11/GymTracker.ipa",
-          "size": 830386,
-          "minOSVersion": "17.0"
         }
       ],
       "appPermissions": {
         "entitlements": [],
         "privacy": {}
       },
-      "version": "1.0.21",
-      "versionDate": "2026-10-24T01:48:29Z",
-      "versionDescription": "Тест: перед «Изменить» список листается на известное расстояние",
-      "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.21/GymTracker.ipa",
-      "size": 1281399
+      "version": "1.0.22",
+      "versionDate": "2026-10-24T02:03:04Z",
+      "versionDescription": "Короткие подтверждения («Отчёт скопирован…») — плашкой сверху поверх экранов приложения",
+      "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.22/GymTracker.ipa",
+      "size": 1286230
     }
   ],
   "news": []
