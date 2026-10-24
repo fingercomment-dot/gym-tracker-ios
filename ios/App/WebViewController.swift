@@ -656,7 +656,7 @@ extension WebViewController: WKScriptMessageHandler {
                 "insets": focused ? insetsPayload() : NSNull(),
                 "picker": true,
                 "holdZones": true,
-                "ui": ["tabs": true, "workout": true, "nv": 3, "mini": NativeTabs.hasPlayerBar],
+                "ui": ["tabs": true, "workout": true, "nv": 3, "mini": NativeTabs.hasPlayerBar, "toast": true],
             ])
         case "ready":
             if appFrame == nil { appFrame = message.frameInfo }
@@ -691,6 +691,8 @@ extension WebViewController: WKScriptMessageHandler {
             } else {
                 nativeTabs.setScreen(tab: body["tab"] as? String ?? "", screen: body["screen"] as? [String: Any], root: body["root"] as? [String: Any])
             }
+        case "toast":
+            ToastHUD.show(body["t"] as? String ?? "", symbol: body["sf"] as? String ?? "checkmark", in: view.window, dark: pageDark)
         case "nvs":
             nvSheets.apply(body["sheets"] as? [[String: Any]] ?? [])
         case "mini":

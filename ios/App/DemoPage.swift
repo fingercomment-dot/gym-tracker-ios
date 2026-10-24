@@ -155,6 +155,9 @@ enum DemoPage {
         if (f === sc.back) { W.stage = null; sendStage(); return; }
         if ((sc.foot || []).some(b => b.fn === f)) { W.stage = STEP_NEXT[W.stage] || null; sendStage(); return; }
         if ((sc.right || []).some(r => r.fn === f)) { W.stage = null; tab = 'today'; sendWorkout(); return; }
+        /* «Отправить Claude» on the summary: the page copies the report and says so */
+        const hit = findFn(sc, f, null);
+        if (hit && /Отправить/.test(hit.node.t || '')) N.postMessage({ type: 'toast', t: 'Отчёт скопирован — вставь его в чат с Claude', sf: 'doc.on.doc' });
         return;
       }
       if (f.indexOf('s:plan/ex:') >= 0) { const c = JSON.parse(JSON.stringify(NVS.excard.tech)); c._excard = true; SH = SH.concat([c]); nvsSend(); return; }
