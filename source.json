@@ -19,6 +19,15 @@
       "screenshotURLs": [],
       "versions": [
         {
+          "version": "1.0.33",
+          "buildVersion": "33",
+          "date": "2026-10-25T02:55:06Z",
+          "localizedDescription": "Health action: every field is text (a list of dates or numbers in a typed list field arrived empty or as one value); the page reads them",
+          "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.33/GymTracker.ipa",
+          "size": 1315558,
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.0.32",
           "buildVersion": "32",
           "date": "2026-10-24T14:00:48Z",
@@ -98,26 +107,17 @@
           "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.22/GymTracker.ipa",
           "size": 1286230,
           "minOSVersion": "17.0"
-        },
-        {
-          "version": "1.0.21",
-          "buildVersion": "21",
-          "date": "2026-10-24T01:48:29Z",
-          "localizedDescription": "Тест: перед «Изменить» список листается на известное расстояние",
-          "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.21/GymTracker.ipa",
-          "size": 1281399,
-          "minOSVersion": "17.0"
         }
       ],
       "appPermissions": {
         "entitlements": [],
         "privacy": {}
       },
-      "version": "1.0.32",
-      "versionDate": "2026-10-24T14:00:48Z",
-      "versionDescription": "Health action: fields in the order of the shortcut's steps (iPhone first, Apple Watch after), no custom summary",
-      "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.32/GymTracker.ipa",
-      "size": 1316395
+      "version": "1.0.33",
+      "versionDate": "2026-10-25T02:55:06Z",
+      "versionDescription": "Health action: every field is text (a list of dates or numbers in a typed list field arrived empty or as one value); the page reads them",
+      "downloadURL": "https://github.com/fingercomment-dot/gym-tracker-ios/releases/download/v1.0.33/GymTracker.ipa",
+      "size": 1315558
     }
   ],
   "news": []
