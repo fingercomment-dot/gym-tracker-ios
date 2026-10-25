@@ -17,49 +17,43 @@ struct ImportHealthIntent: AppIntent {
     @Parameter(title: "Сон — значения", description: "Анализ сна → Значение")
     var sleepValues: [String]?
     @Parameter(title: "Сон — начало", description: "Анализ сна → Дата начала")
-    var sleepStarts: [Date]?
+    var sleepStarts: [String]?
     @Parameter(title: "Сон — конец", description: "Анализ сна → Дата окончания")
-    var sleepEnds: [Date]?
+    var sleepEnds: [String]?
     @Parameter(title: "Расстояние — значения", description: "Ходьба и бег → Значение")
-    var distValues: [Double]?
+    var distValues: [String]?
     @Parameter(title: "Расстояние — начало", description: "Ходьба и бег → Дата начала")
-    var distTimes: [Date]?
+    var distTimes: [String]?
     @Parameter(title: "Расстояние — конец", description: "Ходьба и бег → Дата окончания")
-    var distEnds: [Date]?
+    var distEnds: [String]?
     @Parameter(title: "ВСР — значения", description: "Вариабельность сердечного ритма → Значение (только с Apple Watch)")
-    var hrvValues: [Double]?
+    var hrvValues: [String]?
     @Parameter(title: "ВСР — время", description: "Вариабельность сердечного ритма → Дата начала (только с Apple Watch)")
-    var hrvTimes: [Date]?
+    var hrvTimes: [String]?
     @Parameter(title: "Пульс в покое — значения", description: "Пульс в покое → Значение (только с Apple Watch)")
-    var restValues: [Double]?
+    var restValues: [String]?
     @Parameter(title: "Пульс в покое — время", description: "Пульс в покое → Дата начала (только с Apple Watch)")
-    var restTimes: [Date]?
+    var restTimes: [String]?
     @Parameter(title: "Скорость бега — время", description: "Скорость бега → Дата начала (только с Apple Watch)")
-    var runTimes: [Date]?
+    var runTimes: [String]?
 
     func perform() async throws -> some IntentResult {
-        let ms: (Date) -> Double = { ($0.timeIntervalSince1970 * 1000).rounded() }
-        var item: [String: Any] = ["id": UUID().uuidString, "at": ms(Date())]
-        if let values = sleepValues, let starts = sleepStarts, let ends = sleepEnds {
-            let sleep: [String: Any] = ["v": values, "s": starts.map(ms), "e": ends.map(ms)]
-            item["sleep"] = sleep
-        }
-        if let values = hrvValues, let times = hrvTimes {
-            let hrv: [String: Any] = ["v": values, "t": times.map(ms)]
-            item["hrv"] = hrv
-        }
-        if let values = restValues, let times = restTimes {
-            let rest: [String: Any] = ["v": values, "t": times.map(ms)]
-            item["rest"] = rest
-        }
-        if let times = runTimes {
-            let run: [String: Any] = ["t": times.map(ms)]
-            item["run"] = run
-        }
-        if let values = distValues, let times = distTimes {
-            var dist: [String: Any] = ["v": values, "t": times.map(ms)]
-            if let ends = distEnds { dist["e"] = ends.map(ms) }
-            item["dist"] = dist
+        let now = (Date().timeIntervalSince1970 * 1000).rounded()
+        var item: [String: Any] = ["id": UUID().uuidString, "at": now, "fmt": 2]
+        // everything as the shortcut gave it, as text — the page reads the numbers and dates (web app 12.14+)
+        let groups: [(String, [(String, [String]?)])] = [
+            ("sleep", [("v", sleepValues), ("s", sleepStarts), ("e", sleepEnds)]),
+            ("dist", [("v", distValues), ("t", distTimes), ("e", distEnds)]),
+            ("hrv", [("v", hrvValues), ("t", hrvTimes)]),
+            ("rest", [("v", restValues), ("t", restTimes)]),
+            ("run", [("t", runTimes)]),
+        ]
+        for (key, fields) in groups {
+            var group: [String: Any] = [:]
+            for (name, values) in fields {
+                if let values = values { group[name] = values }
+            }
+            if !group.isEmpty { item[key] = group }
         }
         HealthInbox.add(item)
         await MainActor.run { NotificationCenter.default.post(name: HealthInbox.arrived, object: nil) }
