@@ -10,6 +10,11 @@ on:
       - ".github/workflows/build.yml"
       - ".github/scripts/**"
   workflow_dispatch:
+    inputs:
+      standalone:
+        description: Only check the bundled app launch
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -174,7 +179,10 @@ jobs:
         working-directory: ios
         run: |
           set +e
+          ONLY=""
+          if [ "${{ inputs.standalone }}" = "true" ]; then ONLY="-only-testing:GymTrackerUITests/StandaloneUITests"; fi
           xcodebuild test \
+            $ONLY \
             -project GymTracker.xcodeproj \
             -scheme GymTracker \
             -destination "id=${{ steps.sim.outputs.udid }}" \
@@ -184,6 +192,11 @@ jobs:
             CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=YES \
             > ../uitest.log 2>&1
           STATUS=$?
+          if [ "${{ inputs.standalone }}" = "true" ]; then
+            grep -E "error:|failed|Test Case|\*\* TEST" ../uitest.log | tail -30
+            echo "$STATUS" > ../uitest.status
+            exit 0
+          fi
           grep -E "error:|failed|crash|Crash|Test Case|\*\* TEST" ../uitest.log | tail -60
           echo "xcodebuild exit: $STATUS"
           # the «60/40» check with the simulator's screen recorded: the tab switches are looked at frame by frame
