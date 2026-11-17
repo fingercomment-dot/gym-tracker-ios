@@ -231,7 +231,9 @@ jobs:
                       name = (a.get("suggestedHumanReadableName") or a.get("exportedFileName") or "shot").split("_0_")[0]
                       if os.path.isfile(src):
                           ext = os.path.splitext(src)[1] or ".png"
-                          shutil.copy(src, os.path.join("shots", name.replace("/", "-") + ext))
+                          import re
+                          safe = re.sub(r'[<>:"/\\|?*\r\n`]', '-', name)
+                          shutil.copy(src, os.path.join("shots", safe + ext))
                           n += 1
           print("pictures:", n)
           PY

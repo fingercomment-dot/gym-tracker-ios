@@ -1,0 +1,43 @@
+name: Standalone check
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  standalone:
+    runs-on: macos-15
+    timeout-minutes: 20
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare Xcode and simulator
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_*.app | grep -viE 'beta|release_candidate|_rc' | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+          brew install xcodegen
+          cd ios && xcodegen generate
+          xcrun simctl list devices available --json > ../sims.json
+          python3 - <<'PY' >> "$GITHUB_ENV"
+          import json
+          devices=json.load(open('../sims.json'))['devices']
+          ids=[d['udid'] for rt,ds in sorted(devices.items(),reverse=True) if '.iOS-' in rt for d in ds if d['name'].startswith('iPhone')]
+          print('SIM_ID='+ids[0])
+          PY
+      - name: Test standalone app
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild test -project GymTracker.xcodeproj -scheme GymTracker \
+            -destination "id=$SIM_ID" -derivedDataPath build-check \
+            -resultBundlePath ../standalone.xcresult \
+            -only-testing:GymTrackerUITests/StandaloneUITests \
+            CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=YES \
+            > ../standalone.log 2>&1
+      - name: Keep diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: standalone-diagnostics
+          path: |
+            standalone.log
+            standalone.xcresult/
