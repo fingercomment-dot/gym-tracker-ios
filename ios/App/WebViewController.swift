@@ -104,6 +104,11 @@ final class WebViewController: UIViewController {
 
         let scripts = WKUserContentController()
         scripts.add(ScriptHandlerProxy(self), name: "gymNative")
+        if startURL.isFileURL {
+            let saved = UserDefaults.standard.string(forKey: "gymStandaloneState")
+            let source = "window.__gymSavedState = " + (saved.map { Self.jsString($0) } ?? "null") + ";"
+            scripts.addUserScript(WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        }
         scripts.addUserScript(WKUserScript(source: PageScripts.focus, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
         config.userContentController = scripts
 
@@ -156,6 +161,8 @@ final class WebViewController: UIViewController {
 
         if let demoHTML {
             web.loadHTMLString(demoHTML, baseURL: startURL)
+        } else if startURL.isFileURL {
+            web.loadFileURL(startURL, allowingReadAccessTo: startURL.deletingLastPathComponent())
         } else {
             web.load(URLRequest(url: startURL))
         }
@@ -191,7 +198,7 @@ final class WebViewController: UIViewController {
 
     override func viewSafeAreaInsetsDidChange() {
         super.viewSafeAreaInsetsDidChange()
-        if focused { sendToApp(["type": "insets", "insets": insetsPayload()]) }
+        if focused || appIsWholePage { sendToApp(["type": "insets", "insets": insetsPayload()]) }
     }
 
     // MARK: - Full screen
@@ -583,8 +590,8 @@ final class WebViewController: UIViewController {
                 if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
             })
         }
-        sheet.addAction(UIAlertAction(title: "Сменить ссылку на приложение", style: .default) { [weak self] _ in
-            self?.onChangeLink?()
+        sheet.addAction(UIAlertAction(title: "Открыть ChatGPT", style: .default) { _ in
+            UIApplication.shared.open(URL(string: "https://chatgpt.com/")!)
         })
         sheet.addAction(UIAlertAction(title: "Отмена", style: .cancel))
         if let pop = sheet.popoverPresentationController {
@@ -604,7 +611,11 @@ final class WebViewController: UIViewController {
         hideError()
         spinner.startAnimating()
         if webView.url == nil {
-            webView.load(URLRequest(url: startURL))
+            if startURL.isFileURL {
+                webView.loadFileURL(startURL, allowingReadAccessTo: startURL.deletingLastPathComponent())
+            } else {
+                webView.load(URLRequest(url: startURL))
+            }
         } else {
             webView.reload()
         }
@@ -709,6 +720,18 @@ extension WebViewController: WKScriptMessageHandler {
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         guard let body = message.body as? [String: Any], let type = body["type"] as? String else { return }
         switch type {
+        case "saveLocalState":
+            guard startURL.isFileURL, message.frameInfo.isMainFrame,
+                  let json = body["json"] as? String,
+                  let data = json.data(using: .utf8),
+                  let state = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  state["sessions"] is [String: Any], state["settings"] is [String: Any] else { return }
+            UserDefaults.standard.set(json, forKey: "gymStandaloneState")
+        case "copyReport":
+            guard startURL.isFileURL, message.frameInfo.isMainFrame,
+                  let text = body["text"] as? String else { return }
+            UIPasteboard.general.string = text
+            ToastHUD.show("Отчёт скопирован — вставь его в чат с ChatGPT", symbol: "doc.on.doc", in: view.window, dark: pageDark)
         case "hello":
             appFrame = message.frameInfo
             appIsWholePage = message.frameInfo.isMainFrame
@@ -732,8 +755,8 @@ extension WebViewController: WKScriptMessageHandler {
                 "type": "hello",
                 "native": AppSettings.appVersion,
                 "live": LiveActivityManager.shared.isEnabled,
-                "focus": focused,
-                "insets": focused ? insetsPayload() : NSNull(),
+                "focus": focused || appIsWholePage,
+                "insets": (focused || appIsWholePage) ? insetsPayload() : NSNull(),
                 "picker": true,
                 "holdZones": true,
                 "health": true,
@@ -817,6 +840,11 @@ extension WebViewController: WKNavigationDelegate {
         if scheme == Self.holdScheme {
             // a tap on a button with a menu: the page runs it itself
             decisionHandler(.cancel)
+            return
+        }
+        if scheme == "file", startURL.isFileURL {
+            let root = startURL.deletingLastPathComponent().standardizedFileURL.path + "/"
+            decisionHandler(url.standardizedFileURL.path.hasPrefix(root) ? .allow : .cancel)
             return
         }
         if !["http", "https", "about", "blob", "data", "javascript"].contains(scheme) {

@@ -28,6 +28,8 @@ targets:
     sources:
       - path: App
       - path: Shared
+      - path: WebApp
+        type: folder
     info:
       path: App/Info.plist
       properties:

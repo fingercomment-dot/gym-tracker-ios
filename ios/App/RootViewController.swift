@@ -10,10 +10,8 @@ final class RootViewController: UIViewController {
         if ProcessInfo.processInfo.arguments.contains("-GymDemo") {
             // UI checks in CI: the native parts on a test page
             swap(to: WebViewController(demoHTML: DemoPage.html))
-        } else if let url = AppSettings.artifactURL {
-            showWeb(url)
         } else {
-            showSetup(cancellable: false)
+            showWeb(AppSettings.bundledURL)
         }
         NotificationCenter.default.addObserver(self, selector: #selector(onShake), name: .gymShake, object: nil)
     }
@@ -35,7 +33,7 @@ final class RootViewController: UIViewController {
 
     private func showWeb(_ url: URL) {
         let web = WebViewController(url: url)
-        web.onChangeLink = { [weak self] in self?.showSetup(cancellable: true) }
+        web.onChangeLink = { [weak self] in self?.showWeb(AppSettings.bundledURL) }
         swap(to: web)
     }
 

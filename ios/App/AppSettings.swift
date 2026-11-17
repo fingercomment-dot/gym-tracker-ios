@@ -1,6 +1,10 @@
 import UIKit
 
 enum AppSettings {
+    /// Shipped with the IPA; no account or network connection is needed to start.
+    static var bundledURL: URL {
+        Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "WebApp")!
+    }
     private static let urlKey = "artifactURL"
     private static let focusKey = "focusMode"
     private static let backgroundKey = "pageBackground"
