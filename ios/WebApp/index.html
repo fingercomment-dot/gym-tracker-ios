@@ -820,7 +820,7 @@ html.nunder #view,html.nunder #tabs,html.nunder #mini,html.nunder #stage,html.nu
    has the real screen behind; the page's copy of a sheet the app shows stays hidden, also while it slides away */
 html.nwk #stage{visibility:hidden!important}
 #sheets .nv-drawn{visibility:hidden!important}
-/* the tab's top bar starts under the status bar (in the iPhone app --sat is the status bar; in ChatGPT it is 0):
+/* the tab's top bar starts under the status bar (in the iPhone app --sat is the status bar; in Claude it is 0):
    before, the bar stuck there over the large title, so the title hid under it from the start */
 #view>.screen{padding-top:var(--sat)}
 .wheels.npw .wh-col{gap:8px}
@@ -1374,7 +1374,7 @@ async function flush() {
   }
 }
 async function connectDb() {
-  Sync.state = 'local'; renderSyncChip(); nativeReady();
+  Sync.state = 'local'; renderSyncChip();
 }
 
 function scheduleResub(ms) {
@@ -1784,7 +1784,7 @@ function bestPullups() {
    The iPhone app (Gym Tracker for iPhone, github.com/fingercomment-dot/gym-tracker-ios).
    Inside it this page talks to the phone: the workout and the rest timer on the Lock Screen and in the
    Dynamic Island, real haptics, the screen kept awake during a workout, and the app's own menu.
-   Everywhere else — ChatGPT, Safari — NATIVE is null and nothing here does anything.
+   Everywhere else — Claude, Safari — NATIVE is null and nothing here does anything.
    ===================================================================== */
 const NATIVE = (() => { try { const m = window.webkit && window.webkit.messageHandlers; return (m && m.gymNative) || null; } catch (e) { return null; } })();
 const Native = { hello: null, focus: false, ready: false, liveT: 0, sent: {}, holds: {}, holdTaps: {} };
@@ -1795,7 +1795,7 @@ function nativeSend(msg) {
 }
 function nativeHaptic(style) { nativeSend({ type: 'haptic', style: style || 'selection' }); }
 /* the app answers through this one function: its version, and — when only the app is on screen — how much room
-   the status bar and the home indicator take (inside ChatGPT's page the browser can't tell) */
+   the status bar and the home indicator take (inside Claude's page the browser can't tell) */
 if (NATIVE) window.__gymNative = d => {
   if (!d || typeof d !== 'object') return false;
   const parts = () => holdReady() + '' + nui('tabs') + nui('workout') + nui('nv') + nui('mini');
@@ -1803,7 +1803,7 @@ if (NATIVE) window.__gymNative = d => {
   if (d.type === 'hello') Native.hello = d;
   const wasFocus = Native.focus;
   if ('focus' in d) Native.focus = !!d.focus;
-  /* the app put its own parts away (ChatGPT's page around it) or brought them back: everything goes over again */
+  /* the app put its own parts away (Claude's page around it) or brought them back: everything goes over again */
   if (Native.focus !== wasFocus || d.type === 'hello') { Native.sent = {}; NV.sent = {}; }
   /* the app's own parts came (or went): the press-and-hold menu, the tab bar, the workout list — draw again */
   if (had !== parts()) setTimeout(() => { try { render(); } catch (e) { /* drawn on the next change */ } }, 0);
@@ -1832,14 +1832,14 @@ function nativeInsets(ins) {
     else st.removeProperty(vars[k]);
   }
 }
-/* the app waits for this before it hides ChatGPT's page around the app: by then the data is connected */
+/* the app waits for this before it hides Claude's page around the app: by then the data is connected */
 function nativeReady() { if (!NATIVE || Native.ready) return; Native.ready = true; nativeSend({ type: 'ready', sync: Sync.state }); }
 function nativeBoot() {
   if (!NATIVE) return;
   nativeSend({ type: 'hello', v: APP_VERSION });
   nativeLook();
   nativeLiveSoon();
-  setTimeout(nativeReady, 5000);
+  nativeReady();
 }
 /* "#1E1E1E" from "#1e1e1e", "#fff" or "rgb(30, 30, 30)" */
 function cssHex(v) {
@@ -2586,7 +2586,7 @@ window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTi
     }
   }, { passive: false });
 })();
-/* The keyboard. The app runs inside ChatGPT, which can't tell the page how tall the keyboard is, so while a text field
+/* The keyboard. The app runs inside Claude, which can't tell the page how tall the keyboard is, so while a text field
    in a sheet or on the workout screen is focused, that sheet gets extra room at the bottom: everything in it can be
    scrolled up above the keyboard, and the field itself is moved to the upper part of the sheet. */
 (() => {
@@ -5487,7 +5487,7 @@ function openHealthHelp() {
    with iOS's own components: the tab bar at the bottom and the workout list. The page stays the brain: it tells the
    app what to show (tabs, workout) and does what the app asks (wact) with the same functions as its own buttons.
    While the app's workout list is up the page goes see-through (html.nunder): only its sheets show, over the app's
-   screen (overlay). Everywhere else — ChatGPT, Safari, older apps — nothing here does anything.
+   screen (overlay). Everywhere else — Claude, Safari, older apps — nothing here does anything.
    ===================================================================== */
 function nui(k) { return !!NATIVE && Native.focus && !!Native.hello && !!Native.hello.ui && !!Native.hello.ui[k]; }
 
@@ -5497,7 +5497,7 @@ function nativeTabs() {
   if (!NATIVE) return;
   const on = nui('tabs');
   document.documentElement.classList.toggle('ntabs', on);
-  /* the app's bar was up and the page shows its own again (ChatGPT's page around the app): take the app's away */
+  /* the app's bar was up and the page shows its own again (Claude's page around the app): take the app's away */
   if (!on) { if (Native.sent.tabs && Native.sent.tabs !== 'off') { Native.sent.tabs = 'off'; nativeSend({ type: 'tabs', show: false, items: [] }); } return; }
   /* a sheet of the page covers the bar, the way a sheet covers it in iOS. The app 1.0.15+ lays the page over the bar
      while a sheet is up (overlay); older ones put the bar away */

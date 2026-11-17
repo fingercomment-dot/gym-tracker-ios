@@ -44,6 +44,8 @@ const server = http.createServer((req, res) => {
     });
     await native.goto(`http://127.0.0.1:${server.address().port}`);
     await native.waitForFunction(() => window.messages.some(m => m.type === 'ready'));
+    const order = await native.evaluate(() => window.messages.map(m => m.type));
+    assert.ok(order.indexOf('hello') >= 0 && order.indexOf('hello') < order.indexOf('ready'), 'native hello must precede ready');
     await native.evaluate(() => window.dispatchEvent(new Event('pagehide')));
     const saved = await native.evaluate(() => window.messages.filter(m => m.type === 'saveLocalState').at(-1));
     assert.equal(JSON.parse(saved.json).metrics.probe.weight, 75);
